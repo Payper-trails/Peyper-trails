@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payper Trails — Never miss a renewal again</title>
+<meta name="description" content="Free fleet tracker for cars, bakkies, boats, trailers and caravans. Track licence renewals, services and warranties in one place.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo"><span class="stamp-dot"></span> Payper Trails</div>
+  <button class="btn-ghost hidden" id="logoutBtn" style="padding:8px 16px;font-size:0.85rem;">Log out</button>
+</div>
+
+<!-- ===================== AUTH SCREEN ===================== -->
+<div id="authScreen" class="wrap">
+  <div class="auth-card">
+    <h1 id="authTitle">Log in</h1>
+    <p class="auth-sub">Track every licence, service and warranty in one place. Free.</p>
+
+    <div id="authError" class="error-msg hidden"></div>
+
+    <form id="authForm">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="authEmail" placeholder="you@email.com" required>
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="authPassword" placeholder="••••••••" required minlength="6">
+      </div>
+      <button type="submit" class="btn-primary" style="width:100%;" id="authSubmit">Log in</button>
+    </form>
+
+    <div class="auth-toggle">
+      <span id="authToggleText">Don't have an account?</span>
+      <button id="authToggleBtn">Sign up</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== DASHBOARD ===================== -->
+<div id="dashScreen" class="wrap hidden">
+  <div id="vehicleGrid" class="grid"></div>
+  <div id="emptyState" class="empty-state hidden">
+    <div class="display">No vehicles yet</div>
+    <p>Add your first car, bakkie, boat, trailer or caravan — we'll keep track of what's due and when.</p>
+  </div>
+</div>
+
+<button class="fab hidden" id="addFab" aria-label="Add vehicle">+</button>
+
+<footer class="small-print hidden" id="footer">Payper Trails — every renewal, service and warranty, in one trail.</footer>
+
+<!-- ===================== ADD/EDIT VEHICLE MODAL ===================== -->
+<div id="vehicleModal" class="modal-backdrop hidden">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="modalTitle">Add vehicle</h2>
+      <button class="modal-close" id="closeModal">&times;</button>
+    </div>
+
+    <form id="vehicleForm">
+      <input type="hidden" id="vehicleId">
+
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="vName" placeholder="e.g. Hilux Bakkie, Ski Boat" required>
+      </div>
+
+      <div class="field">
+        <label>Type</label>
+        <select id="vType">
+          <option value="car">Car</option>
+          <option value="bakkie">Bakkie</option>
+          <option value="boat">Boat</option>
+          <option value="trailer">Trailer</option>
+          <option value="caravan">Caravan</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Licence renewal date</label>
+        <input type="date" id="vLicence">
+      </div>
+
+      <div class="field">
+        <label>Next service — date (optional)</label>
+        <input type="date" id="vServiceDate">
+      </div>
+      <div class="field">
+        <label>Next service — due at km (optional)</label>
+        <input type="number" id="vServiceKm" placeholder="e.g. 95000">
+      </div>
+      <div class="field">
+        <label>Current odometer (km)</label>
+        <input type="number" id="vCurrentKm" placeholder="e.g. 88000">
+      </div>
+
+      <div class="field">
+        <label>Notes</label>
+        <input type="text" id="vNotes" placeholder="Optional">
+      </div>
+
+      <!-- Warranties / guarantees -->
+      <div class="subsection">
+        <div class="subsection-head">
+          <label style="margin-bottom:0;">Warranties &amp; guarantees</label>
+          <button type="button" id="addWarrantyBtn" class="link-btn">+ Add</button>
+        </div>
+        <div id="warrantyList"></div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:24px;">
+        <button type="submit" class="btn-primary" style="flex:1;">Save vehicle</button>
+        <button type="button" class="btn-danger hidden" id="deleteVehicleBtn">Delete</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Supabase client -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
