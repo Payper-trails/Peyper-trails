@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Peyper-Trails — Never miss a renewal again</title>
+<meta name="description" content="Free fleet tracker for cars, bakkies, boats, trailers and caravans. Track licence renewals, services and warranties in one place.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo"><span class="stamp-dot"></span> Peyper-Trails</div>
+  <div style="display:flex; gap:8px;">
+    <button class="btn-ghost hidden" id="exportBtn" style="padding:8px 16px;font-size:0.85rem;">Export readings</button>
+    <button class="btn-ghost hidden" id="logoutBtn" style="padding:8px 16px;font-size:0.85rem;">Log out</button>
+  </div>
+</div>
+
+<!-- ===================== AUTH SCREEN ===================== -->
+<div id="authScreen" class="wrap">
+  <div class="auth-card">
+    <h1 id="authTitle">Log in</h1>
+    <p class="auth-sub">Track every licence, service and warranty in one place. Free.</p>
+
+    <div id="authError" class="error-msg hidden"></div>
+
+    <form id="authForm" autocomplete="on">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="authEmail" name="email" placeholder="you@email.com" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <div class="password-wrap">
+          <input type="password" id="authPassword" name="password" placeholder="••••••••" autocomplete="current-password" required minlength="6">
+          <button type="button" class="password-toggle" id="togglePassword" aria-label="Show password">Show</button>
+        </div>
+      </div>
+      <div class="keep-logged-in">
+        <input type="checkbox" id="keepLoggedIn" checked>
+        <label for="keepLoggedIn">Keep me logged in on this device</label>
+      </div>
+      <button type="submit" class="btn-primary" style="width:100%;" id="authSubmit">Log in</button>
+    </form>
+
+    <div class="auth-toggle">
+      <span id="authToggleText">Don't have an account?</span>
+      <button id="authToggleBtn">Sign up</button>
+    </div>
+
+    <div class="auth-links">
+      <button id="forgotPasswordBtn" class="link-btn-plain">Forgot password?</button>
+      <span class="auth-links-sep">·</span>
+      <a href="mailto:oddventuressa@gmail.com?subject=Peyper-Trails%20support" class="link-btn-plain">Contact support</a>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== FORGOT PASSWORD MODAL ===================== -->
+<div id="forgotModal" class="modal-backdrop hidden">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-head">
+      <h2>Reset password</h2>
+      <button class="modal-close" id="closeForgotModal">&times;</button>
+    </div>
+    <p style="color:rgba(234,227,205,0.6); font-size:0.85rem; margin-top:-10px; margin-bottom:20px;">
+      Enter your email and we'll send you a link to set a new password.
+    </p>
+    <div id="forgotMsg" class="hidden" style="margin-bottom:16px;"></div>
+    <form id="forgotForm">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="forgotEmail" placeholder="you@email.com" required>
+      </div>
+      <button type="submit" class="btn-primary" style="width:100%;" id="forgotSubmit">Send reset link</button>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== SET NEW PASSWORD MODAL (shown after clicking reset link) ===================== -->
+<div id="newPasswordModal" class="modal-backdrop hidden">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-head">
+      <h2>Set new password</h2>
+    </div>
+    <div id="newPasswordMsg" class="hidden" style="margin-bottom:16px;"></div>
+    <form id="newPasswordForm">
+      <div class="field">
+        <label>New password</label>
+        <div class="password-wrap">
+          <input type="password" id="newPasswordInput" placeholder="••••••••" required minlength="6">
+          <button type="button" class="password-toggle" id="toggleNewPassword" aria-label="Show password">Show</button>
+        </div>
+      </div>
+      <button type="submit" class="btn-primary" style="width:100%;" id="newPasswordSubmit">Update password</button>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== DASHBOARD ===================== -->
+<div id="dashScreen" class="wrap hidden">
+  <div id="vehicleGrid" class="grid"></div>
+  <div id="emptyState" class="empty-state hidden">
+    <div class="display">No vehicles yet</div>
+    <p>Add your first car, bakkie, boat, trailer or caravan — we'll keep track of what's due and when.</p>
+  </div>
+</div>
+
+<button class="fab hidden" id="addFab" aria-label="Add vehicle">+</button>
+
+<footer class="small-print hidden" id="footer">Peyper-Trails — every renewal, service and warranty, in one trail. · <a href="mailto:oddventuressa@gmail.com?subject=Peyper-Trails%20support" style="color:inherit;">Contact support</a></footer>
+
+<!-- ===================== ADD/EDIT VEHICLE MODAL ===================== -->
+<div id="vehicleModal" class="modal-backdrop hidden">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="modalTitle">Add vehicle</h2>
+      <button class="modal-close" id="closeModal">&times;</button>
+    </div>
+
+    <form id="vehicleForm">
+      <input type="hidden" id="vehicleId">
+
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="vName" placeholder="e.g. Hilux Bakkie, Ski Boat" required>
+      </div>
+
+      <div class="field">
+        <label>Type</label>
+        <select id="vType">
+          <option value="car">Car</option>
+          <option value="bakkie">Bakkie</option>
+          <option value="boat">Boat</option>
+          <option value="trailer">Trailer</option>
+          <option value="caravan">Caravan</option>
+          <option value="haul-truck">Haul truck</option>
+          <option value="excavator">Excavator</option>
+          <option value="loader">Loader</option>
+          <option value="drill-rig">Drill rig</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Licence renewal date</label>
+        <input type="date" id="vLicence">
+      </div>
+
+      <div class="field">
+        <label>Primary meter type</label>
+        <select id="vMeterUnit">
+          <option value="km">Kilometers (road vehicles)</option>
+          <option value="hours">Hours (plant &amp; heavy equipment)</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Next service — date (optional)</label>
+        <input type="date" id="vServiceDate">
+      </div>
+      <div class="field">
+        <label>Next service — due at km (optional)</label>
+        <input type="number" id="vServiceKm" placeholder="e.g. 95000">
+      </div>
+      <div class="field">
+        <label>Current odometer (km)</label>
+        <input type="number" id="vCurrentKm" placeholder="e.g. 88000">
+      </div>
+      <div class="field">
+        <label>Next service — due at hours (optional)</label>
+        <input type="number" id="vServiceHours" placeholder="e.g. 12000">
+      </div>
+      <div class="field">
+        <label>Current hour-meter reading</label>
+        <input type="number" id="vCurrentHours" placeholder="e.g. 8450">
+      </div>
+
+      <div class="field">
+        <label>Notes</label>
+        <input type="text" id="vNotes" placeholder="Optional">
+      </div>
+
+      <!-- Warranties / guarantees -->
+      <div class="subsection">
+        <div class="subsection-head">
+          <label style="margin-bottom:0;">Warranties &amp; guarantees</label>
+          <button type="button" id="addWarrantyBtn" class="link-btn">+ Add</button>
+        </div>
+        <div id="warrantyList"></div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:24px;">
+        <button type="submit" class="btn-primary" style="flex:1;">Save vehicle</button>
+        <button type="button" class="btn-danger hidden" id="deleteVehicleBtn">Delete</button>
+      </div>
+      <button type="button" class="link-btn hidden" id="openReadingLogBtn" style="margin-top:14px;">View reading log &amp; audit trail →</button>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== READING LOG MODAL ===================== -->
+<div id="readingLogModal" class="modal-backdrop hidden">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Reading log</h2>
+      <button class="modal-close" id="closeReadingLog">&times;</button>
+    </div>
+    <p style="color:rgba(234,227,205,0.6); font-size:0.85rem; margin-top:-10px; margin-bottom:20px;">
+      Every reading ever captured for this asset — the independent record that protects warranty claims even if a physical meter fails or a figure gets mis-transcribed on handover.
+    </p>
+
+    <form id="readingForm" style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-bottom:20px; padding-bottom:20px; border-bottom:1px solid rgba(234,227,205,0.1);">
+      <input type="hidden" id="readingVehicleId">
+      <div class="field" style="flex:1; min-width:120px; margin-bottom:0;">
+        <label>Reading</label>
+        <input type="number" id="readingValue" placeholder="e.g. 8512" required>
+      </div>
+      <div class="field" style="flex:1; min-width:130px; margin-bottom:0;">
+        <label>Date</label>
+        <input type="date" id="readingDate" required>
+      </div>
+      <div class="field" style="flex:1; min-width:150px; margin-bottom:0;">
+        <label>Recorded by</label>
+        <input type="text" id="readingRecordedBy" placeholder="e.g. Night shift — J. Dlamini">
+      </div>
+      <button type="submit" class="btn-primary" style="margin-bottom:0;">Add</button>
+    </form>
+
+    <div id="readingList"></div>
+  </div>
+</div>
+
+<!-- ===================== EXPORT CONFIRMATION (toast-style) ===================== -->
+
+
+<!-- Supabase client -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
