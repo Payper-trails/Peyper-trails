@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Peyper-Trails — Never miss a renewal again</title>
+<meta name="description" content="Free fleet tracker for cars, bakkies, boats, trailers and caravans. Track licence renewals, services and warranties in one place.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo"><span class="stamp-dot"></span> Peyper-Trails</div>
+  <div style="display:flex; gap:8px;">
+    <button class="btn-ghost hidden" id="exportBtn" style="padding:8px 16px;font-size:0.85rem;">Export readings</button>
+    <button class="btn-ghost hidden" id="logoutBtn" style="padding:8px 16px;font-size:0.85rem;">Log out</button>
+  </div>
+</div>
+
+<!-- ===================== AUTH SCREEN ===================== -->
+<div id="authScreen" class="wrap">
+  <div class="auth-card">
+    <h1 id="authTitle">Log in</h1>
+    <p class="auth-sub">Track every licence, service and warranty in one place. Free.</p>
+
+    <div id="authError" class="error-msg hidden"></div>
+
+    <form id="authForm" autocomplete="on">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="authEmail" name="email" placeholder="you@email.com" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <div class="password-wrap">
+          <input type="password" id="authPassword" name="password" placeholder="••••••••" autocomplete="current-password" required minlength="6">
+          <button type="button" class="password-toggle" id="togglePassword" aria-label="Show password">Show</button>
+        </div>
+      </div>
+      <div class="keep-logged-in">
+        <input type="checkbox" id="keepLoggedIn" checked>
+        <label for="keepLoggedIn">Keep me logged in on this device</label>
+      </div>
+      <button type="submit" class="btn-primary" style="width:100%;" id="authSubmit">Log in</button>
+    </form>
+
+    <div class="auth-toggle">
+      <span id="authToggleText">Don't have an account?</span>
+      <button id="authToggleBtn">Sign up</button>
+    </div>
+
+    <div class="auth-links">
+      <button id="forgotPasswordBtn" class="link-btn-plain">Forgot password?</button>
+      <span class="auth-links-sep">·</span>
+      <a href="mailto:oddventuressa@gmail.com?subject=Peyper-Trails%20support" class="link-btn-plain">Contact support</a>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== FORGOT PASSWORD MODAL ===================== -->
+<div id="forgotModal" class="modal-backdrop hidden">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-head">
+      <h2>Reset password</h2>
+      <button class="modal-close" id="closeForgotModal">&times;</button>
+    </div>
+    <p style="color:rgba(234,227,205,0.6); font-size:0.85rem; margin-top:-10px; margin-bottom:20px;">
+      Enter your email and we'll send you a link to set a new password.
+    </p>
+    <div id="forgotMsg" class="hidden" style="margin-bottom:16px;"></div>
+    <form id="forgotForm">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="forgotEmail" placeholder="you@email.com" required>
+      </div>
+      <button type="submit" class="btn-primary" style="width:100%;" id="forgotSubmit">Send reset link</button>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== SET NEW PASSWORD MODAL (shown after clicking reset link) ===================== -->
+<div id="newPasswordModal" class="modal-backdrop hidden">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-head">
+      <h2>Set new password</h2>
+    </div>
+    <div id="newPasswordMsg" class="hidden" style="margin-bottom:16px;"></div>
+    <form id="newPasswordForm">
+      <div class="field">
+        <label>New password</label>
+        <div class="password-wrap">
+          <input type="password" id="newPasswordInput" placeholder="••••••••" required minlength="6">
+          <button type="button" class="password-toggle" id="toggleNewPassword" aria-label="Show password">Show</button>
+        </div>
+      </div>
+      <button type="submit" class="btn-primary" style="width:100%;" id="newPasswordSubmit">Update password</button>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== DASHBOARD ===================== -->
+<div id="dashScreen" class="wrap hidden">
+  <div id="vehicleGrid" class="grid"></div>
+  <div id="emptyState" class="empty-state hidden">
+    <div class="display">No vehicles yet</div>
+    <p>Add your first car, bakkie, boat, trailer or caravan — we'll keep track of what's due and when.</p>
+  </div>
+</div>
+
+<button class="fab hidden" id="addFab" aria-label="Add vehicle">+</button>
+
+<footer class="small-print hidden" id="footer">Peyper-Trails — every renewal, service and warranty, in one trail. · <a href="mailto:oddventuressa@gmail.com?subject=Peyper-Trails%20support" style="color:inherit;">Contact support</a></footer>
+
+<!-- ===================== ADD/EDIT VEHICLE MODAL ===================== -->
+<div id="vehicleModal" class="modal-backdrop hidden">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="modalTitle">Add vehicle</h2>
+      <button class="modal-close" id="closeModal">&times;</button>
+    </div>
+
+    <form id="vehicleForm">
+      <input type="hidden" id="vehicleId">
+
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="vName" placeholder="e.g. Hilux Bakkie, Ski Boat" required>
+      </div>
+
+      <div class="field">
+        <label>Type</label>
+        <div class="type-picker" id="typePicker">
+          <button type="button" class="type-btn" data-type="car">
+            <svg viewBox="0 0 48 32"><path d="M4 22 L8 12 Q10 9 14 9 H34 Q38 9 40 12 L44 22 M4 22 H44 M4 22 V25 H8 V22 M40 22 V25 H44 V22" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="13" cy="24" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="35" cy="24" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            <span>Car</span>
+          </button>
+          <button type="button" class="type-btn" data-type="bakkie">
+            <svg viewBox="0 0 48 32"><path d="M3 22 L6 13 Q8 10 12 10 H24 V22 M24 13 H27 V22 M4 22 H44 V16 H33 L27 13 M4 22 V25 H8 V22 M40 22 V25 H44 V22" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="24" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="36" cy="24" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            <span>Bakkie</span>
+          </button>
+          <button type="button" class="type-btn" data-type="boat">
+            <svg viewBox="0 0 48 32"><path d="M6 20 L42 20 L37 27 H11 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M24 20 V5 M24 5 L34 13 H24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+            <span>Boat</span>
+          </button>
+          <button type="button" class="type-btn" data-type="trailer">
+            <svg viewBox="0 0 48 32"><path d="M2 15 H10 M10 10 H38 V22 H10 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="18" cy="24" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="30" cy="24" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            <span>Trailer</span>
+          </button>
+          <button type="button" class="type-btn" data-type="caravan">
+            <svg viewBox="0 0 48 32"><path d="M4 22 L4 12 Q4 9 8 9 H40 Q44 9 44 13 V22 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><rect x="12" y="13" width="10" height="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="14" cy="24" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="34" cy="24" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            <span>Caravan</span>
+          </button>
+          <button type="button" class="type-btn" data-type="haul-truck">
+            <svg viewBox="0 0 48 32"><path d="M2 22 L2 14 L14 8 L20 14 V22 M20 22 H44 V17 H20" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="9" cy="24" r="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="36" cy="24" r="4" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            <span>Haul truck</span>
+          </button>
+          <button type="button" class="type-btn" data-type="excavator">
+            <svg viewBox="0 0 48 32"><path d="M4 24 H20 M6 24 L6 18 Q6 15 9 15 H17 Q20 15 20 18 V24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M15 15 L28 8 L34 10 L26 20 L18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+            <span>Excavator</span>
+          </button>
+          <button type="button" class="type-btn" data-type="loader">
+            <svg viewBox="0 0 48 32"><path d="M14 24 H30 Q33 24 33 21 V15 Q33 12 30 12 H20 V24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M20 18 L8 20 L6 26 H14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="18" cy="26" r="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="29" cy="26" r="3" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            <span>Loader</span>
+          </button>
+          <button type="button" class="type-btn" data-type="drill-rig">
+            <svg viewBox="0 0 48 32"><path d="M24 4 V26 M18 26 H30 M14 26 H34" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M18 26 L24 8 L30 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+            <span>Drill rig</span>
+          </button>
+          <button type="button" class="type-btn" data-type="other">
+            <svg viewBox="0 0 48 32"><circle cx="24" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 13 Q20 9 24 9 Q28 9 28 13 Q28 16 24 17 V19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="24" cy="22" r="1.2" fill="currentColor"/></svg>
+            <span>Other</span>
+          </button>
+        </div>
+        <input type="hidden" id="vType" value="car">
+      </div>
+
+      <div class="field">
+        <label>Licence renewal date</label>
+        <input type="date" id="vLicence">
+      </div>
+
+      <div class="field">
+        <label>Primary meter type</label>
+        <select id="vMeterUnit">
+          <option value="km">Kilometers (road vehicles)</option>
+          <option value="hours">Hours (plant &amp; heavy equipment)</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Next service — date (optional)</label>
+        <input type="date" id="vServiceDate">
+      </div>
+      <div class="field">
+        <label>Next service — due at km (optional)</label>
+        <input type="number" id="vServiceKm" placeholder="e.g. 95000">
+      </div>
+      <div class="field">
+        <label>Current odometer (km)</label>
+        <input type="number" id="vCurrentKm" placeholder="e.g. 88000">
+      </div>
+      <div class="field">
+        <label>Next service — due at hours (optional)</label>
+        <input type="number" id="vServiceHours" placeholder="e.g. 12000">
+      </div>
+      <div class="field">
+        <label>Current hour-meter reading</label>
+        <input type="number" id="vCurrentHours" placeholder="e.g. 8450">
+      </div>
+
+      <div class="field">
+        <label>Notes</label>
+        <input type="text" id="vNotes" placeholder="Optional">
+      </div>
+
+      <!-- Warranties / guarantees -->
+      <div class="subsection">
+        <div class="subsection-head">
+          <label style="margin-bottom:0;">Warranties &amp; guarantees</label>
+          <button type="button" id="addWarrantyBtn" class="link-btn">+ Add</button>
+        </div>
+        <div id="warrantyList"></div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:24px;">
+        <button type="submit" class="btn-primary" style="flex:1;">Save vehicle</button>
+        <button type="button" class="btn-danger hidden" id="deleteVehicleBtn">Delete</button>
+      </div>
+      <button type="button" class="link-btn hidden" id="openReadingLogBtn" style="margin-top:14px;">View reading log &amp; audit trail →</button>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== READING LOG MODAL ===================== -->
+<div id="readingLogModal" class="modal-backdrop hidden">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Reading log</h2>
+      <button class="modal-close" id="closeReadingLog">&times;</button>
+    </div>
+    <p style="color:rgba(234,227,205,0.6); font-size:0.85rem; margin-top:-10px; margin-bottom:20px;">
+      Every reading ever captured for this asset — the independent record that protects warranty claims even if a physical meter fails or a figure gets mis-transcribed on handover.
+    </p>
+
+    <form id="readingForm" style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-bottom:20px; padding-bottom:20px; border-bottom:1px solid rgba(234,227,205,0.1);">
+      <input type="hidden" id="readingVehicleId">
+      <div class="field" style="flex:1; min-width:120px; margin-bottom:0;">
+        <label>Reading</label>
+        <input type="number" id="readingValue" placeholder="e.g. 8512" required>
+      </div>
+      <div class="field" style="flex:1; min-width:130px; margin-bottom:0;">
+        <label>Date</label>
+        <input type="date" id="readingDate" required>
+      </div>
+      <div class="field" style="flex:1; min-width:150px; margin-bottom:0;">
+        <label>Recorded by</label>
+        <input type="text" id="readingRecordedBy" placeholder="e.g. Night shift — J. Dlamini">
+      </div>
+      <button type="submit" class="btn-primary" style="margin-bottom:0;">Add</button>
+    </form>
+
+    <div id="readingList"></div>
+  </div>
+</div>
+
+<!-- ===================== EXPORT CONFIRMATION (toast-style) ===================== -->
+
+
+<!-- Supabase client -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
