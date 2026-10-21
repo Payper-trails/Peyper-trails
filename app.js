@@ -22,7 +22,8 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 
 let currentUser = null;
 let vehiclesCache = [];
-let warrantiesDraft = []; // warranties being edited in the open modal (not yet saved)
+let currentVehicleId = null; // the vehicle whose page is open (null = dashboard)
+let fabMode = 'vehicle'; // what the round + button adds: 'vehicle' or 'part'
 
 const $ = (id) => document.getElementById(id);
 
@@ -194,18 +195,27 @@ async function checkSession() {
 }
 
 function showAuthScreen() {
+  currentVehicleId = null;
   $('authScreen').classList.remove('hidden');
   $('dashScreen').classList.add('hidden');
+  $('vehicleScreen').classList.add('hidden');
   $('addFab').classList.add('hidden');
   $('logoutBtn').classList.add('hidden');
+  $('exportBtn').classList.add('hidden');
   $('footer').classList.add('hidden');
 }
 
+// Shows the dashboard (the grid of vehicles)
 function showDashboard() {
+  currentVehicleId = null;
+  fabMode = 'vehicle';
+  $('addFab').setAttribute('aria-label', 'Add vehicle');
   $('authScreen').classList.add('hidden');
+  $('vehicleScreen').classList.add('hidden');
   $('dashScreen').classList.remove('hidden');
   $('addFab').classList.remove('hidden');
   $('logoutBtn').classList.remove('hidden');
+  $('exportBtn').classList.remove('hidden');
   $('footer').classList.remove('hidden');
 }
 
@@ -222,6 +232,13 @@ async function loadVehicles() {
   }
   vehiclesCache = vehicles || [];
   renderGrid();
+  if (currentVehicleId) {
+    if (vehiclesCache.find(v => v.id === currentVehicleId)) {
+      renderVehiclePage();
+    } else {
+      showDashboard();
+    }
+  }
 }
 
 function daysUntil(dateStr) {
@@ -240,15 +257,18 @@ function statusFromDays(days) {
   return 'ok';
 }
 
+// Soonest due date across the licence, the service, and every part's warranty and service
 function nearestStatus(vehicle) {
   const candidates = [];
-  const lic = daysUntil(vehicle.licence_expiry);
-  if (lic !== null) candidates.push(lic);
-  const svc = daysUntil(vehicle.service_due_date);
-  if (svc !== null) candidates.push(svc);
-  (vehicle.warranties || []).forEach(w => {
-    const wd = daysUntil(w.expiry_date);
-    if (wd !== null) candidates.push(wd);
+  const add = (dateStr) => {
+    const d = daysUntil(dateStr);
+    if (d !== null) candidates.push(d);
+  };
+  add(vehicle.licence_expiry);
+  add(vehicle.service_due_date);
+  (vehicle.warranties || []).forEach(p => {
+    add(p.expiry_date);
+    add(p.next_service_date);
   });
   if (candidates.length === 0) return { days: null, status: null };
   const min = Math.min(...candidates);
@@ -318,59 +338,6 @@ function fmtDate(d) {
   return dt.toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function renderGrid() {
-  const grid = $('vehicleGrid');
-  const empty = $('emptyState');
-  grid.innerHTML = '';
-
-  if (vehiclesCache.length === 0) {
-    empty.classList.remove('hidden');
-    return;
-  }
-  empty.classList.add('hidden');
-
-  vehiclesCache.forEach(v => {
-    const { days } = nearestStatus(v);
-    const daysLabel = days === null ? '—' : (days <= 0 ? 'DUE' : `${days} days left`);
-
-    const licStatus = statusFromDays(daysUntil(v.licence_expiry));
-    const svcStatus = statusFromDays(daysUntil(v.service_due_date));
-
-    const warrantyRows = (v.warranties || []).map(w => {
-      const wStatus = statusFromDays(daysUntil(w.expiry_date));
-      return `<div class="disc-row"><span class="k">${escapeHtml(w.item_name)}</span><span class="v">${fmtDate(w.expiry_date)} ${tagHtml(wStatus)}</span></div>`;
-    }).join('');
-
-    const card = document.createElement('div');
-    card.className = 'disc-card';
-    card.innerHTML = `
-      <div class="disc-head">
-        <div class="speedo-gauge">${speedoGaugeSVG(days)}</div>
-        <div class="speedo-readout">${daysLabel}</div>
-        <div class="disc-name-row">
-          <span class="disc-type-icon">${TYPE_ICONS[v.vehicle_type] || TYPE_ICONS.other}</span>
-          <div class="disc-name">${escapeHtml(v.name)}</div>
-        </div>
-        <div class="disc-type">${escapeHtml(v.vehicle_type)}</div>
-      </div>
-      <div class="disc-rows">
-        <div class="disc-row"><span class="k">Licence</span><span class="v">${fmtDate(v.licence_expiry)} ${tagHtml(licStatus)}</span></div>
-        ${v.service_due_date ? `<div class="disc-row"><span class="k">Service due</span><span class="v">${fmtDate(v.service_due_date)} ${tagHtml(svcStatus)}</span></div>` : ''}
-        ${v.service_due_km ? `<div class="disc-row"><span class="k">Service at</span><span class="v">${Number(v.service_due_km).toLocaleString()} km</span></div>` : ''}
-        ${warrantyRows}
-      </div>
-      <div class="disc-actions">
-        <button class="link-btn" data-edit="${v.id}">Edit</button>
-      </div>
-    `;
-    grid.appendChild(card);
-  });
-
-  grid.querySelectorAll('[data-edit]').forEach(btn => {
-    btn.addEventListener('click', () => openModal(btn.dataset.edit));
-  });
-}
-
 // Small icon versions matching the type-picker in the Add Vehicle modal
 const TYPE_ICONS = {
   car: '<svg viewBox="0 0 48 32"><path d="M4 22 L8 12 Q10 9 14 9 H34 Q38 9 40 12 L44 22 M4 22 H44 M4 22 V25 H8 V22 M40 22 V25 H44 V22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/><circle cx="13" cy="24" r="3.5" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="35" cy="24" r="3.5" fill="none" stroke="currentColor" stroke-width="2.5"/></svg>',
@@ -391,9 +358,326 @@ function escapeHtml(str) {
   return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
+// ---------------- PARTS: CATEGORIES & ICONS ----------------
+const partSvg = (inner, sw) => `<svg viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round">${inner}</svg>`;
+
+const PART_CATEGORIES = [
+  { key: 'battery', label: 'Battery', inner: '<rect x="6" y="9" width="36" height="18" rx="2"/><path d="M14 9 V6 H19 V9 M29 9 V6 H34 V9 M15 18 H21 M18 15 V21 M29 18 H35"/>' },
+  { key: 'tyres', label: 'Tyres', inner: '<circle cx="24" cy="16" r="12"/><circle cx="24" cy="16" r="5"/><path d="M24 4 V8 M24 24 V28 M12 16 H16 M32 16 H36"/>' },
+  { key: 'brakes', label: 'Brakes', inner: '<circle cx="21" cy="16" r="11"/><circle cx="21" cy="16" r="3"/><path d="M32 8 Q40 16 32 24 L29 21 Q34 16 29 11 Z"/>' },
+  { key: 'engine', label: 'Engine', inner: '<path d="M10 12 H18 V8 H30 V12 H36 V16 H40 V24 H36 V26 H12 V22 H8 V14 Z"/>' },
+  { key: 'filters', label: 'Filters', inner: '<rect x="14" y="6" width="20" height="20" rx="3"/><path d="M14 12 H34 M14 18 H34 M20 26 V29 M28 26 V29"/>' },
+  { key: 'hydraulics', label: 'Hydraulics', inner: '<rect x="6" y="11" width="22" height="10" rx="2"/><path d="M28 16 H42 M42 12 V20 M6 16 H3"/>' },
+  { key: 'electrical', label: 'Electrical', inner: '<path d="M26 3 L13 18 H23 L21 29 L35 13 H25 Z"/>' },
+  { key: 'other', label: 'Other', inner: '<circle cx="24" cy="16" r="11"/><path d="M20 13 Q20 9 24 9 Q28 9 28 13 Q28 16 24 17 V19"/><circle cx="24" cy="22" r="1.2" fill="currentColor"/>' },
+];
+
+function categoryOf(key) {
+  return PART_CATEGORIES.find(c => c.key === key) || PART_CATEGORIES[PART_CATEGORIES.length - 1];
+}
+
+// ---------------- SMALL HELPERS ----------------
+function meterUnitOf(v) { return v && v.meter_unit === 'hours' ? 'hours' : 'km'; }
+function unitShort(unit) { return unit === 'hours' ? 'hrs' : 'km'; }
+function hasNum(x) { return x !== null && x !== undefined && x !== ''; }
+function fmtNum(x) { return Number(x).toLocaleString('en-ZA'); }
+function numOrNull(s) { return s === '' || s === null || s === undefined ? null : Number(s); }
+function todayStr() { return new Date().toLocaleDateString('en-CA'); }
+function prettyType(t) { return (t || 'other').replace(/-/g, ' '); }
+
+function currentMeter(v) {
+  const val = meterUnitOf(v) === 'hours' ? v.current_hours : v.current_km;
+  return hasNum(val) ? Number(val) : null;
+}
+function serviceDueMeter(v) {
+  const val = meterUnitOf(v) === 'hours' ? v.service_due_hours : v.service_due_km;
+  return hasNum(val) ? Number(val) : null;
+}
+
+// ---------------- DASHBOARD CARDS ----------------
+function renderGrid() {
+  const grid = $('vehicleGrid');
+  const empty = $('emptyState');
+  grid.innerHTML = '';
+
+  if (vehiclesCache.length === 0) {
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  vehiclesCache.forEach(v => {
+    const { days } = nearestStatus(v);
+    const daysLabel = days === null ? '—' : (days <= 0 ? 'DUE' : `${days} days left`);
+    const unit = meterUnitOf(v);
+    const licStatus = statusFromDays(daysUntil(v.licence_expiry));
+    const svcStatus = statusFromDays(daysUntil(v.service_due_date));
+    const dueAt = serviceDueMeter(v);
+    const partsCount = (v.warranties || []).length;
+
+    const card = document.createElement('div');
+    card.className = 'disc-card disc-card-tap';
+    card.setAttribute('role', 'button');
+    card.tabIndex = 0;
+    card.dataset.open = v.id;
+    card.innerHTML = `
+      <div class="disc-head">
+        <div class="speedo-gauge">${speedoGaugeSVG(days)}</div>
+        <div class="speedo-readout">${daysLabel}</div>
+        <div class="disc-name-row">
+          <span class="disc-type-icon">${TYPE_ICONS[v.vehicle_type] || TYPE_ICONS.other}</span>
+          <div class="disc-name">${escapeHtml(v.name)}</div>
+        </div>
+        <div class="disc-type">${escapeHtml(prettyType(v.vehicle_type))}</div>
+      </div>
+      <div class="disc-rows">
+        <div class="disc-row"><span class="k">Licence</span><span class="v">${fmtDate(v.licence_expiry)} ${tagHtml(licStatus)}</span></div>
+        ${v.service_due_date ? `<div class="disc-row"><span class="k">Service due</span><span class="v">${fmtDate(v.service_due_date)} ${tagHtml(svcStatus)}</span></div>` : ''}
+        ${dueAt !== null ? `<div class="disc-row"><span class="k">Service at</span><span class="v">${fmtNum(dueAt)} ${unitShort(unit)}</span></div>` : ''}
+        <div class="disc-row"><span class="k">Parts tracked</span><span class="v">${partsCount}</span></div>
+      </div>
+      <div class="disc-actions">
+        <span class="open-hint">Open &rarr;</span>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+
+  grid.querySelectorAll('[data-open]').forEach(card => {
+    card.addEventListener('click', () => openVehiclePage(card.dataset.open));
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openVehiclePage(card.dataset.open);
+      }
+    });
+  });
+}
+
+// ---------------- VEHICLE PAGE ----------------
+function openVehiclePage(id, push = true) {
+  const v = vehiclesCache.find(x => x.id === id);
+  if (!v) return;
+  currentVehicleId = id;
+  if (push) history.pushState({ vehicleId: id }, '');
+  $('dashScreen').classList.add('hidden');
+  $('vehicleScreen').classList.remove('hidden');
+  fabMode = 'part';
+  $('addFab').setAttribute('aria-label', 'Add part');
+  window.scrollTo(0, 0);
+  renderVehiclePage();
+}
+
+$('backBtn').addEventListener('click', () => {
+  if (history.state && history.state.vehicleId) {
+    history.back(); // the popstate handler below shows the dashboard
+  } else {
+    showDashboard();
+  }
+});
+
+window.addEventListener('popstate', (e) => {
+  if (!currentUser) return;
+  const id = e.state && e.state.vehicleId;
+  if (id && vehiclesCache.find(v => v.id === id)) {
+    openVehiclePage(id, false);
+  } else {
+    showDashboard();
+  }
+});
+
+// Soonest due date (warranty end or next service) for a part, in days — used to sort the parts list
+function partNearestDays(p) {
+  const list = [daysUntil(p.expiry_date), daysUntil(p.next_service_date)].filter(d => d !== null);
+  return list.length ? Math.min(...list) : Infinity;
+}
+
+function renderVehiclePage() {
+  const v = vehiclesCache.find(x => x.id === currentVehicleId);
+  if (!v) return;
+  const unit = meterUnitOf(v);
+  const { days } = nearestStatus(v);
+  const daysLabel = days === null ? '—' : (days <= 0 ? 'DUE' : `${days} days left`);
+  const cur = currentMeter(v);
+  const dueAt = serviceDueMeter(v);
+  const licStatus = statusFromDays(daysUntil(v.licence_expiry));
+  const svcStatus = statusFromDays(daysUntil(v.service_due_date));
+
+  $('vehicleHeader').innerHTML = `
+    <div class="disc-card vehicle-head">
+      <div class="disc-head">
+        <div class="speedo-gauge">${speedoGaugeSVG(days)}</div>
+        <div class="speedo-readout">${daysLabel}</div>
+        <div class="disc-name-row">
+          <span class="disc-type-icon">${TYPE_ICONS[v.vehicle_type] || TYPE_ICONS.other}</span>
+          <div class="disc-name">${escapeHtml(v.name)}</div>
+        </div>
+        <div class="disc-type">${escapeHtml(prettyType(v.vehicle_type))}</div>
+      </div>
+      <div class="disc-rows">
+        <div class="disc-row"><span class="k">${unit === 'hours' ? 'Hour meter' : 'Odometer'}</span><span class="v">${cur !== null ? fmtNum(cur) + ' ' + unitShort(unit) : '—'}</span></div>
+        <div class="disc-row"><span class="k">Licence</span><span class="v">${fmtDate(v.licence_expiry)} ${tagHtml(licStatus)}</span></div>
+        ${v.service_due_date ? `<div class="disc-row"><span class="k">Service due</span><span class="v">${fmtDate(v.service_due_date)} ${tagHtml(svcStatus)}</span></div>` : ''}
+        ${dueAt !== null ? `<div class="disc-row"><span class="k">Service at</span><span class="v">${fmtNum(dueAt)} ${unitShort(unit)}</span></div>` : ''}
+        ${v.notes ? `<div class="disc-row"><span class="k">Notes</span><span class="v" style="font-family:'Inter',sans-serif; font-weight:500; text-align:right;">${escapeHtml(v.notes)}</span></div>` : ''}
+      </div>
+      <div class="vehicle-actions">
+        <button class="btn-primary" id="editVehicleBtn">Edit vehicle info</button>
+        <button class="btn-outline-dark" id="readingLogBtn">Reading log</button>
+      </div>
+    </div>
+  `;
+  $('editVehicleBtn').addEventListener('click', () => openModal(v.id));
+  $('readingLogBtn').addEventListener('click', () => openReadingLog(v.id));
+
+  const parts = (v.warranties || []).slice().sort((a, b) => partNearestDays(a) - partNearestDays(b));
+  const grid = $('partsGrid');
+  grid.innerHTML = '';
+  $('partsEmpty').classList.toggle('hidden', parts.length > 0);
+
+  parts.forEach(p => {
+    const cat = categoryOf(p.category);
+    const wStatus = statusFromDays(daysUntil(p.expiry_date));
+    const sStatus = statusFromDays(daysUntil(p.next_service_date));
+    const hasWarranty = p.expiry_date || hasNum(p.expiry_km);
+    const hasService = p.next_service_date || hasNum(p.next_service_value);
+
+    const card = document.createElement('div');
+    card.className = 'part-card';
+    card.setAttribute('role', 'button');
+    card.tabIndex = 0;
+    card.dataset.part = p.id;
+    card.innerHTML = `
+      <div class="part-top">
+        <span class="part-icon">${partSvg(cat.inner, 2.5)}</span>
+        <div>
+          <div class="part-name">${escapeHtml(p.item_name)}</div>
+          <div class="part-cat">${escapeHtml(cat.label)}</div>
+        </div>
+      </div>
+      <div class="part-tags">${tagHtml(wStatus, 'Warranty')}${tagHtml(sStatus, 'Service')}</div>
+      <div class="disc-rows">
+        ${hasWarranty ? `<div class="disc-row"><span class="k">Warranty ends</span><span class="v">${p.expiry_date ? fmtDate(p.expiry_date) : ''}${p.expiry_date && hasNum(p.expiry_km) ? ' · ' : ''}${hasNum(p.expiry_km) ? fmtNum(p.expiry_km) + ' ' + unitShort(unit) : ''}</span></div>` : ''}
+        ${hasService ? `<div class="disc-row"><span class="k">Next service</span><span class="v">${p.next_service_date ? fmtDate(p.next_service_date) : ''}${p.next_service_date && hasNum(p.next_service_value) ? ' · ' : ''}${hasNum(p.next_service_value) ? fmtNum(p.next_service_value) + ' ' + unitShort(unit) : ''}</span></div>` : ''}
+        ${!hasWarranty && !hasService ? '<div class="part-notes">No dates set yet. Tap to add them.</div>' : ''}
+      </div>
+      ${p.notes ? `<div class="part-notes">${escapeHtml(p.notes)}</div>` : ''}
+    `;
+    grid.appendChild(card);
+  });
+
+  grid.querySelectorAll('[data-part]').forEach(card => {
+    card.addEventListener('click', () => openPartModal(card.dataset.part));
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openPartModal(card.dataset.part);
+      }
+    });
+  });
+}
+
+// The round + button: adds a vehicle on the dashboard, adds a part on a vehicle page
+$('addFab').addEventListener('click', () => {
+  if (fabMode === 'part' && currentVehicleId) openPartModal(null);
+  else openModal(null);
+});
+
+// ---------------- MODAL: ADD/EDIT PART ----------------
+function buildCategoryPicker() {
+  $('partCategoryPicker').innerHTML = PART_CATEGORIES.map(c => `
+    <button type="button" class="type-btn" data-category="${c.key}">
+      ${partSvg(c.inner, 2)}
+      <span>${c.label}</span>
+    </button>
+  `).join('');
+  $('partCategoryPicker').querySelectorAll('.type-btn').forEach(btn => {
+    btn.addEventListener('click', () => setPartCategory(btn.dataset.category));
+  });
+}
+
+function setPartCategory(key) {
+  $('pCategory').value = key;
+  $('partCategoryPicker').querySelectorAll('.type-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.category === key);
+  });
+}
+
+function openPartModal(partId) {
+  const v = vehiclesCache.find(x => x.id === currentVehicleId);
+  if (!v) return;
+  const p = partId ? (v.warranties || []).find(x => x.id === partId) : null;
+  const unit = unitShort(meterUnitOf(v));
+
+  $('partId').value = p ? p.id : '';
+  $('pName').value = p ? p.item_name : '';
+  setPartCategory(p && p.category ? p.category : 'other');
+  $('pWarrantyDate').value = p ? (p.expiry_date || '') : '';
+  $('pWarrantyValue').value = p && hasNum(p.expiry_km) ? p.expiry_km : '';
+  $('pServiceDate').value = p ? (p.next_service_date || '') : '';
+  $('pServiceValue').value = p && hasNum(p.next_service_value) ? p.next_service_value : '';
+  $('pNotes').value = p ? (p.notes || '') : '';
+  $('pWarrantyValueLabel').textContent = `Warranty expires at ${unit} (optional)`;
+  $('pServiceValueLabel').textContent = `Next service at ${unit} (optional)`;
+  $('partModalTitle').textContent = p ? 'Edit part' : 'Add part';
+  $('deletePartBtn').classList.toggle('hidden', !p);
+  $('partModal').classList.remove('hidden');
+}
+
+function closePartModal() {
+  $('partModal').classList.add('hidden');
+}
+$('closePartModal').addEventListener('click', closePartModal);
+
+$('partForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!currentVehicleId) return;
+  const id = $('partId').value || null;
+  const payload = {
+    vehicle_id: currentVehicleId,
+    user_id: currentUser.id,
+    item_name: $('pName').value.trim(),
+    category: $('pCategory').value || 'other',
+    expiry_date: $('pWarrantyDate').value || null,
+    expiry_km: numOrNull($('pWarrantyValue').value),
+    next_service_date: $('pServiceDate').value || null,
+    next_service_value: numOrNull($('pServiceValue').value),
+    notes: $('pNotes').value.trim() || null,
+  };
+  if (!payload.item_name) return;
+
+  $('partSaveBtn').disabled = true;
+  const { error } = id
+    ? await sb.from('warranties').update(payload).eq('id', id)
+    : await sb.from('warranties').insert(payload);
+  $('partSaveBtn').disabled = false;
+  if (error) { alert(error.message); return; }
+
+  closePartModal();
+  await loadVehicles();
+});
+
+$('deletePartBtn').addEventListener('click', async () => {
+  const id = $('partId').value;
+  if (!id) return;
+  if (!confirm('Delete this part? This can\'t be undone.')) return;
+  const { error } = await sb.from('warranties').delete().eq('id', id);
+  if (error) { alert(error.message); return; }
+  closePartModal();
+  await loadVehicles();
+});
+
 // ---------------- MODAL: ADD/EDIT VEHICLE ----------------
-$('addFab').addEventListener('click', () => openModal(null));
 $('closeModal').addEventListener('click', closeModal);
+
+function applyMeterUnit() {
+  const hours = $('vMeterUnit').value === 'hours';
+  $('fServiceKm').classList.toggle('hidden', hours);
+  $('fCurrentKm').classList.toggle('hidden', hours);
+  $('fServiceHours').classList.toggle('hidden', !hours);
+  $('fCurrentHours').classList.toggle('hidden', !hours);
+}
+$('vMeterUnit').addEventListener('change', applyMeterUnit);
 
 function openModal(vehicleId) {
   const v = vehicleId ? vehiclesCache.find(x => x.id === vehicleId) : null;
@@ -401,16 +685,16 @@ function openModal(vehicleId) {
   $('vName').value = v ? v.name : '';
   setVehicleType(v ? v.vehicle_type : 'car');
   $('vLicence').value = v ? (v.licence_expiry || '') : '';
+  $('vMeterUnit').value = v ? meterUnitOf(v) : 'km';
   $('vServiceDate').value = v ? (v.service_due_date || '') : '';
-  $('vServiceKm').value = v ? (v.service_due_km || '') : '';
-  $('vCurrentKm').value = v ? (v.current_km || '') : '';
+  $('vServiceKm').value = v && hasNum(v.service_due_km) ? v.service_due_km : '';
+  $('vCurrentKm').value = v && hasNum(v.current_km) ? v.current_km : '';
+  $('vServiceHours').value = v && hasNum(v.service_due_hours) ? v.service_due_hours : '';
+  $('vCurrentHours').value = v && hasNum(v.current_hours) ? v.current_hours : '';
   $('vNotes').value = v ? (v.notes || '') : '';
   $('modalTitle').textContent = v ? 'Edit vehicle' : 'Add vehicle';
   $('deleteVehicleBtn').classList.toggle('hidden', !v);
-
-  warrantiesDraft = v && v.warranties ? v.warranties.map(w => ({...w})) : [];
-  renderWarrantyDraft();
-
+  applyMeterUnit();
   $('vehicleModal').classList.remove('hidden');
 }
 
@@ -429,48 +713,6 @@ function closeModal() {
   $('vehicleModal').classList.add('hidden');
 }
 
-$('addWarrantyBtn').addEventListener('click', () => {
-  warrantiesDraft.push({ id: null, item_name: '', expiry_date: '', expiry_km: '', notes: '' });
-  renderWarrantyDraft();
-});
-
-function renderWarrantyDraft() {
-  const list = $('warrantyList');
-  list.innerHTML = '';
-  warrantiesDraft.forEach((w, idx) => {
-    const row = document.createElement('div');
-    row.style.marginBottom = '10px';
-    row.innerHTML = `
-      <div style="display:flex; gap:8px; align-items:flex-end;">
-        <div style="flex:1;">
-          <input type="text" placeholder="e.g. Full vehicle warranty, New tyres" value="${escapeHtml(w.item_name)}" data-w-field="item_name" data-w-idx="${idx}">
-        </div>
-        <button type="button" class="remove-x" data-w-remove="${idx}">&times;</button>
-      </div>
-      <div style="display:flex; gap:8px; margin-top:6px;">
-        <input type="date" value="${w.expiry_date || ''}" data-w-field="expiry_date" data-w-idx="${idx}" style="flex:1;">
-        <input type="number" placeholder="Expiry km (optional)" value="${w.expiry_km || ''}" data-w-field="expiry_km" data-w-idx="${idx}" style="flex:1;">
-      </div>
-    `;
-    list.appendChild(row);
-  });
-
-  list.querySelectorAll('[data-w-field]').forEach(input => {
-    input.addEventListener('input', (e) => {
-      const idx = parseInt(e.target.dataset.wIdx);
-      const field = e.target.dataset.wField;
-      warrantiesDraft[idx][field] = e.target.value;
-    });
-  });
-  list.querySelectorAll('[data-w-remove]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const idx = parseInt(e.target.dataset.wRemove);
-      warrantiesDraft.splice(idx, 1);
-      renderWarrantyDraft();
-    });
-  });
-}
-
 $('vehicleForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const id = $('vehicleId').value || null;
@@ -480,46 +722,21 @@ $('vehicleForm').addEventListener('submit', async (e) => {
     name: $('vName').value.trim(),
     vehicle_type: $('vType').value,
     licence_expiry: $('vLicence').value || null,
+    meter_unit: $('vMeterUnit').value,
     service_due_date: $('vServiceDate').value || null,
-    service_due_km: $('vServiceKm').value ? Number($('vServiceKm').value) : null,
-    current_km: $('vCurrentKm').value ? Number($('vCurrentKm').value) : null,
+    service_due_km: numOrNull($('vServiceKm').value),
+    current_km: numOrNull($('vCurrentKm').value),
+    service_due_hours: numOrNull($('vServiceHours').value),
+    current_hours: numOrNull($('vCurrentHours').value),
     notes: $('vNotes').value.trim() || null,
   };
 
-  let vehicleId = id;
   if (id) {
     const { error } = await sb.from('vehicles').update(payload).eq('id', id);
     if (error) { alert(error.message); return; }
   } else {
-    const { data, error } = await sb.from('vehicles').insert(payload).select().single();
+    const { error } = await sb.from('vehicles').insert(payload);
     if (error) { alert(error.message); return; }
-    vehicleId = data.id;
-  }
-
-  // Sync warranties: delete removed, upsert current draft
-  const { data: existingWarranties } = await sb.from('warranties').select('id').eq('vehicle_id', vehicleId);
-  const existingIds = (existingWarranties || []).map(w => w.id);
-  const keptIds = warrantiesDraft.filter(w => w.id).map(w => w.id);
-  const toDelete = existingIds.filter(eid => !keptIds.includes(eid));
-  if (toDelete.length) {
-    await sb.from('warranties').delete().in('id', toDelete);
-  }
-
-  for (const w of warrantiesDraft) {
-    if (!w.item_name || !w.item_name.trim()) continue;
-    const wPayload = {
-      vehicle_id: vehicleId,
-      user_id: currentUser.id,
-      item_name: w.item_name.trim(),
-      expiry_date: w.expiry_date || null,
-      expiry_km: w.expiry_km ? Number(w.expiry_km) : null,
-      notes: w.notes || null,
-    };
-    if (w.id) {
-      await sb.from('warranties').update(wPayload).eq('id', w.id);
-    } else {
-      await sb.from('warranties').insert(wPayload);
-    }
   }
 
   closeModal();
@@ -529,12 +746,210 @@ $('vehicleForm').addEventListener('submit', async (e) => {
 $('deleteVehicleBtn').addEventListener('click', async () => {
   const id = $('vehicleId').value;
   if (!id) return;
-  if (!confirm('Delete this vehicle and all its warranty records? This can\'t be undone.')) return;
+  if (!confirm('Delete this vehicle with all its parts and readings? This can\'t be undone.')) return;
   const { error } = await sb.from('vehicles').delete().eq('id', id);
   if (error) { alert(error.message); return; }
   closeModal();
+  const wasOnVehiclePage = history.state && history.state.vehicleId;
+  currentVehicleId = null;
+  showDashboard();
+  if (wasOnVehiclePage) history.back();
   await loadVehicles();
 });
 
+// ---------------- READING LOG ----------------
+let readingsCache = []; // readings for the vehicle shown in the open log, newest first
+
+async function openReadingLog(vehicleId) {
+  const v = vehiclesCache.find(x => x.id === vehicleId);
+  if (!v) return;
+  const unit = meterUnitOf(v);
+  $('readingVehicleId').value = v.id;
+  $('readingLogFor').textContent = `${v.name} — readings in ${unit === 'hours' ? 'hours' : 'km'}`;
+  $('readingLabel').textContent = `Reading (${unitShort(unit)})`;
+  $('readingValue').value = '';
+  $('readingDate').value = todayStr();
+  $('readingRecordedBy').value = '';
+  $('readingMsg').classList.add('hidden');
+  $('readingList').innerHTML = '<p class="part-notes" style="color:rgba(234,227,205,0.5);">Loading…</p>';
+  $('readingLogModal').classList.remove('hidden');
+  await loadReadings(v.id);
+}
+
+async function loadReadings(vehicleId) {
+  const { data, error } = await sb
+    .from('meter_readings')
+    .select('*')
+    .eq('vehicle_id', vehicleId)
+    .order('reading_date', { ascending: false })
+    .order('created_at', { ascending: false });
+  if (error) {
+    $('readingList').innerHTML = `<div class="error-msg">${escapeHtml(error.message)}</div>`;
+    return;
+  }
+  readingsCache = data || [];
+  renderReadingList();
+}
+
+function renderReadingList() {
+  const list = $('readingList');
+  if (readingsCache.length === 0) {
+    list.innerHTML = '<p style="color:rgba(234,227,205,0.5); font-size:0.9rem;">No readings yet. Add the first one above.</p>';
+    return;
+  }
+  list.innerHTML = readingsCache.map(r => `
+    <div class="reading-item">
+      <div class="reading-top">
+        <span class="reading-value">${fmtNum(r.reading_value)} ${unitShort(r.reading_unit)}</span>
+        <span class="reading-date">${fmtDate(r.reading_date)}</span>
+      </div>
+      <div class="reading-meta">${r.recorded_by ? escapeHtml(r.recorded_by) : 'No name recorded'} · ${escapeHtml(r.source || 'manual')}</div>
+      ${r.flagged ? `<div class="reading-flag">⚠ Flagged: ${escapeHtml(r.flag_reason || 'Needs checking')}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+$('closeReadingLog').addEventListener('click', () => {
+  $('readingLogModal').classList.add('hidden');
+});
+
+$('readingForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const v = vehiclesCache.find(x => x.id === $('readingVehicleId').value);
+  if (!v) return;
+  const unit = meterUnitOf(v);
+  const value = Number($('readingValue').value);
+  const date = $('readingDate').value;
+  if (!isFinite(value) || value < 0 || !date) return;
+
+  // Compare with the latest reading on or before this date (list is newest first)
+  const prior = readingsCache.find(r => r.reading_date <= date);
+  let flagged = false;
+  let reason = null;
+  if (prior) {
+    const prev = Number(prior.reading_value);
+    if (value < prev) {
+      flagged = true;
+      reason = `Lower than the previous reading (${fmtNum(prev)} on ${fmtDate(prior.reading_date)})`;
+    } else if (prev > 0 && value > prev * 1.5) {
+      flagged = true;
+      reason = `More than 1.5 times the previous reading (${fmtNum(prev)} on ${fmtDate(prior.reading_date)})`;
+    }
+  }
+
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+
+  const { error } = await sb.from('meter_readings').insert({
+    vehicle_id: v.id,
+    user_id: currentUser.id,
+    reading_value: value,
+    reading_unit: unit,
+    reading_date: date,
+    source: 'manual',
+    recorded_by: $('readingRecordedBy').value.trim() || null,
+    flagged,
+    flag_reason: reason,
+  });
+  if (error) {
+    submitBtn.disabled = false;
+    alert(error.message);
+    return;
+  }
+
+  // Keep the vehicle's current meter in step, unless this is a back-dated entry
+  const latestDate = readingsCache.length ? readingsCache[0].reading_date : '';
+  if (date >= latestDate) {
+    const field = unit === 'hours' ? 'current_hours' : 'current_km';
+    const { error: updErr } = await sb.from('vehicles').update({ [field]: value }).eq('id', v.id);
+    if (updErr) console.error(updErr);
+  }
+
+  $('readingValue').value = '';
+  $('readingRecordedBy').value = '';
+  const msg = $('readingMsg');
+  msg.className = flagged ? 'error-msg' : 'info-msg';
+  msg.textContent = flagged
+    ? `Saved, but flagged for checking: ${reason}. It stays in the log.`
+    : 'Reading saved.';
+  submitBtn.disabled = false;
+
+  await loadReadings(v.id);
+  await loadVehicles();
+});
+
+// ---------------- EXPORT READINGS (CSV) ----------------
+async function fetchAllReadings() {
+  const all = [];
+  const size = 1000; // Supabase returns at most 1000 rows per request, so fetch in pages
+  for (let from = 0; ; from += size) {
+    const { data, error } = await sb
+      .from('meter_readings')
+      .select('*')
+      .order('reading_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(from, from + size - 1);
+    if (error) throw error;
+    all.push(...data);
+    if (data.length < size) break;
+  }
+  return all;
+}
+
+function csvCell(val) {
+  let s = val === null || val === undefined ? '' : String(val);
+  // Stop spreadsheet programs from running text that starts like a formula
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+
+$('exportBtn').addEventListener('click', async () => {
+  const btn = $('exportBtn');
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Exporting…';
+  try {
+    const readings = await fetchAllReadings();
+    if (readings.length === 0) {
+      alert('There are no readings to export yet.');
+      return;
+    }
+    const byId = {};
+    vehiclesCache.forEach(v => { byId[v.id] = v; });
+    const header = ['Asset', 'Type', 'Reading', 'Unit', 'Date', 'Source', 'Recorded By', 'Flagged', 'Flag Reason'];
+    const rows = readings.map(r => {
+      const v = byId[r.vehicle_id];
+      return [
+        v ? v.name : 'Unknown asset',
+        v ? prettyType(v.vehicle_type) : '',
+        r.reading_value,
+        r.reading_unit,
+        r.reading_date,
+        r.source,
+        r.recorded_by || '',
+        r.flagged ? 'Yes' : 'No',
+        r.flag_reason || '',
+      ];
+    });
+    const csv = [header, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `peyper-trails-readings-${todayStr()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (err) {
+    alert(err.message || 'Could not export. Try again in a moment.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+});
+
 // ---------------- INIT ----------------
+buildCategoryPicker();
 checkSession();
