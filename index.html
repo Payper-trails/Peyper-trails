@@ -107,6 +107,19 @@
   </div>
 </div>
 
+
+<!-- ===================== VEHICLE PAGE ===================== -->
+<div id="vehicleScreen" class="wrap hidden">
+  <button class="back-btn" id="backBtn">&larr; All vehicles</button>
+  <div id="vehicleHeader"></div>
+  <h3 class="section-title">Parts &amp; components</h3>
+  <div id="partsGrid" class="parts-grid"></div>
+  <div id="partsEmpty" class="empty-state hidden">
+    <div class="display">No parts yet</div>
+    <p>Tap the + button to add a battery, tyres, brakes or any other part, with its warranty and next service.</p>
+  </div>
+</div>
+
 <button class="fab hidden" id="addFab" aria-label="Add vehicle">+</button>
 
 <footer class="small-print hidden" id="footer">Peyper-Trails — every renewal, service and warranty, in one trail. · <a href="mailto:oddventuressa@gmail.com?subject=Peyper-Trails%20support" style="color:inherit;">Contact support</a></footer>
@@ -188,22 +201,22 @@
       </div>
 
       <div class="field">
-        <label>Next service — date (optional)</label>
+        <label>Next service &mdash; date (optional)</label>
         <input type="date" id="vServiceDate">
       </div>
-      <div class="field">
-        <label>Next service — due at km (optional)</label>
+      <div class="field" id="fServiceKm">
+        <label>Next service &mdash; due at km (optional)</label>
         <input type="number" id="vServiceKm" placeholder="e.g. 95000">
       </div>
-      <div class="field">
+      <div class="field" id="fCurrentKm">
         <label>Current odometer (km)</label>
         <input type="number" id="vCurrentKm" placeholder="e.g. 88000">
       </div>
-      <div class="field">
-        <label>Next service — due at hours (optional)</label>
+      <div class="field hidden" id="fServiceHours">
+        <label>Next service &mdash; due at hours (optional)</label>
         <input type="number" id="vServiceHours" placeholder="e.g. 12000">
       </div>
-      <div class="field">
+      <div class="field hidden" id="fCurrentHours">
         <label>Current hour-meter reading</label>
         <input type="number" id="vCurrentHours" placeholder="e.g. 8450">
       </div>
@@ -213,20 +226,61 @@
         <input type="text" id="vNotes" placeholder="Optional">
       </div>
 
-      <!-- Warranties / guarantees -->
-      <div class="subsection">
-        <div class="subsection-head">
-          <label style="margin-bottom:0;">Warranties &amp; guarantees</label>
-          <button type="button" id="addWarrantyBtn" class="link-btn">+ Add</button>
-        </div>
-        <div id="warrantyList"></div>
-      </div>
-
       <div style="display:flex; gap:10px; margin-top:24px;">
         <button type="submit" class="btn-primary" style="flex:1;">Save vehicle</button>
         <button type="button" class="btn-danger hidden" id="deleteVehicleBtn">Delete</button>
       </div>
-      <button type="button" class="link-btn hidden" id="openReadingLogBtn" style="margin-top:14px;">View reading log &amp; audit trail →</button>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== ADD/EDIT PART MODAL ===================== -->
+<div id="partModal" class="modal-backdrop hidden">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="partModalTitle">Add part</h2>
+      <button class="modal-close" id="closePartModal">&times;</button>
+    </div>
+
+    <form id="partForm">
+      <input type="hidden" id="partId">
+
+      <div class="field">
+        <label>Part name</label>
+        <input type="text" id="pName" placeholder="e.g. Front tyres, Main battery" required>
+      </div>
+
+      <div class="field">
+        <label>Category</label>
+        <div class="type-picker" id="partCategoryPicker"></div>
+        <input type="hidden" id="pCategory" value="other">
+      </div>
+
+      <div class="field">
+        <label>Warranty expires &mdash; date (optional)</label>
+        <input type="date" id="pWarrantyDate">
+      </div>
+      <div class="field">
+        <label id="pWarrantyValueLabel">Warranty expires at km (optional)</label>
+        <input type="number" id="pWarrantyValue" placeholder="e.g. 100000">
+      </div>
+      <div class="field">
+        <label>Next service &mdash; date (optional)</label>
+        <input type="date" id="pServiceDate">
+      </div>
+      <div class="field">
+        <label id="pServiceValueLabel">Next service at km (optional)</label>
+        <input type="number" id="pServiceValue" placeholder="e.g. 95000">
+      </div>
+      <div class="field">
+        <label>Notes</label>
+        <input type="text" id="pNotes" placeholder="Optional">
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:24px;">
+        <button type="submit" class="btn-primary" style="flex:1;" id="partSaveBtn">Save part</button>
+        <button type="button" class="btn-danger hidden" id="deletePartBtn">Delete</button>
+      </div>
     </form>
   </div>
 </div>
@@ -242,10 +296,13 @@
       Every reading ever captured for this asset — the independent record that protects warranty claims even if a physical meter fails or a figure gets mis-transcribed on handover.
     </p>
 
+    <div id="readingLogFor" style="font-weight:600; margin-bottom:14px;"></div>
+    <div id="readingMsg" class="hidden"></div>
+
     <form id="readingForm" style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-bottom:20px; padding-bottom:20px; border-bottom:1px solid rgba(234,227,205,0.1);">
       <input type="hidden" id="readingVehicleId">
       <div class="field" style="flex:1; min-width:120px; margin-bottom:0;">
-        <label>Reading</label>
+        <label id="readingLabel">Reading</label>
         <input type="number" id="readingValue" placeholder="e.g. 8512" required>
       </div>
       <div class="field" style="flex:1; min-width:130px; margin-bottom:0;">
