@@ -12,7 +12,7 @@
 <div class="topbar">
   <div class="logo"><span class="stamp-dot"></span> Peyper-Trails</div>
   <div style="display:flex; gap:8px;">
-    <button class="btn-ghost hidden" id="exportBtn" style="padding:8px 16px;font-size:0.85rem;">Export readings</button>
+    <button class="btn-ghost" id="helpBtn" style="padding:8px 16px;font-size:0.85rem;">Help</button>
     <button class="btn-ghost hidden" id="logoutBtn" style="padding:8px 16px;font-size:0.85rem;">Log out</button>
   </div>
 </div>
@@ -44,6 +44,11 @@
       <button type="submit" class="btn-primary" style="width:100%;" id="authSubmit">Log in</button>
     </form>
 
+    <div id="googleBtnWrap" class="hidden">
+      <div class="or-sep"><span>or</span></div>
+      <button type="button" class="btn-google" id="googleBtn">Continue with Google</button>
+    </div>
+
     <div class="auth-toggle">
       <span id="authToggleText">Don't have an account?</span>
       <button id="authToggleBtn">Sign up</button>
@@ -52,7 +57,9 @@
     <div class="auth-links">
       <button id="forgotPasswordBtn" class="link-btn-plain">Forgot password?</button>
       <span class="auth-links-sep">·</span>
-      <a href="mailto:oddventuressa@gmail.com?subject=Peyper-Trails%20support" class="link-btn-plain">Contact support</a>
+      <button id="forgotEmailBtn" class="link-btn-plain">Forgot your email?</button>
+      <span class="auth-links-sep">·</span>
+      <button id="authHelpBtn" class="link-btn-plain">Help &amp; questions</button>
     </div>
   </div>
 </div>
@@ -78,6 +85,27 @@
   </div>
 </div>
 
+<!-- ===================== FORGOT EMAIL (HELP) MODAL ===================== -->
+<div id="forgotEmailModal" class="modal-backdrop hidden">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-head">
+      <h2>Forgot your email?</h2>
+      <button class="modal-close" id="closeForgotEmailModal">&times;</button>
+    </div>
+    <p class="help-text">
+      Peyper-Trails logs you in with the email address you signed up with. For your safety we can't look
+      emails up on this screen, because that would also let strangers find other people's emails. Here is how to find yours:
+    </p>
+    <ol class="help-steps">
+      <li><strong>Search your inboxes.</strong> Look for an email from Peyper-Trails (we sent a confirmation link when you signed up). The address it was sent to is your login email.</li>
+      <li><strong>Check your saved logins.</strong> Your browser or phone may have saved it. In Chrome, open the menu, tap <em>Password Manager</em> and search for &ldquo;peyper&rdquo;.</li>
+      <li><strong>Still stuck?</strong> Open Help &amp; questions below. If nothing works, email us the name of a vehicle you added and roughly when you signed up.</li>
+    </ol>
+    <button type="button" class="btn-primary help-support-btn" id="forgotEmailHelpBtn" style="width:100%;">See help &amp; questions</button>
+    <p class="help-text" style="margin:14px 0 0; text-align:center;">Still stuck? <a href="mailto:oddventuressa@gmail.com?subject=Peyper-Trails%20-%20I%20forgot%20my%20login%20email" style="color:var(--safety-orange);">Email us</a>. We reply when we can.</p>
+  </div>
+</div>
+
 <!-- ===================== SET NEW PASSWORD MODAL (shown after clicking reset link) ===================== -->
 <div id="newPasswordModal" class="modal-backdrop hidden">
   <div class="modal" style="max-width:420px;">
@@ -100,35 +128,65 @@
 
 <!-- ===================== DASHBOARD ===================== -->
 <div id="dashScreen" class="wrap hidden">
+  <div id="dashTools" class="dash-tools hidden">
+    <button class="btn-ghost" id="reportsBtn">Brand reports</button>
+    <button class="btn-ghost" id="exportBtn">Export readings</button>
+  </div>
   <div id="vehicleGrid" class="grid"></div>
-  <div id="emptyState" class="empty-state hidden">
-    <div class="display">No vehicles yet</div>
-    <p>Add your first car, bakkie, boat, trailer or caravan — we'll keep track of what's due and when.</p>
+  <div id="nextStepHint" class="hint-banner hidden">
+    <strong>Next step:</strong> tap your asset's card below to open it, then add its parts (battery, tyres, shocks and more).
+  </div>
+  <div id="emptyState" class="empty-hero hidden">
+    <h2 class="display">Welcome to Peyper-Trails</h2>
+    <p class="hero-sub">Let's add your first asset. It takes about a minute.</p>
+    <button type="button" class="big-plus" id="firstAssetBtn" aria-label="Add your first asset">+</button>
+    <div class="big-plus-label">Tap here to add your first asset</div>
+    <ol class="hero-steps">
+      <li><strong>Add an asset.</strong> A car, bakkie, motorbike, tractor, boat, trailer, inverter, solar panels or even a coffee machine.</li>
+      <li><strong>Open it.</strong> Tap its card to see everything about it in one place.</li>
+      <li><strong>Add its parts.</strong> Batteries, tyres, shocks and more, with brand, invoice, warranty and service dates.</li>
+      <li><strong>Relax.</strong> The dial warns you before anything runs out. Needle on the green side is fine. Needle on the red side means act now.</li>
+    </ol>
   </div>
 </div>
 
 
 <!-- ===================== VEHICLE PAGE ===================== -->
 <div id="vehicleScreen" class="wrap hidden">
-  <button class="back-btn" id="backBtn">&larr; All vehicles</button>
+  <button class="back-btn" id="backBtn">&larr; All assets</button>
   <div id="vehicleHeader"></div>
-  <h3 class="section-title">Parts &amp; components</h3>
+  <h3 class="section-title" id="partsTitle">Parts &amp; components</h3>
   <div id="partsGrid" class="parts-grid"></div>
-  <div id="partsEmpty" class="empty-state hidden">
-    <div class="display">No parts yet</div>
-    <p>Tap the + button to add a battery, tyres, brakes or any other part, with its warranty and next service.</p>
+  <div id="partsEmpty" class="empty-hero hidden">
+    <h2 class="display">Now add its parts</h2>
+    <p class="hero-sub">Keep every battery, tyre and shock absorber with its invoice and warranty in one place.</p>
+    <button type="button" class="big-plus" id="firstPartBtn" aria-label="Add your first part">+</button>
+    <div class="big-plus-label">Tap here to add your first part</div>
   </div>
 </div>
 
-<button class="fab hidden" id="addFab" aria-label="Add vehicle">+</button>
+<!-- ===================== BRAND REPORTS ===================== -->
+<div id="reportsScreen" class="wrap hidden">
+  <button class="back-btn" id="reportsBack">&larr; All assets</button>
+  <h2 class="display" style="margin:0 0 6px;">Brand reports</h2>
+  <p class="help-text" style="margin-top:0;">See which brands you buy, and how long they last. &ldquo;Avg lasted&rdquo; appears once you mark parts as replaced and fill in the install and replaced dates (and readings, if you track km, hours or liters).</p>
+  <div class="field" style="max-width:320px;">
+    <label>Show</label>
+    <select id="reportCategory"><option value="all">All item types</option></select>
+  </div>
+  <div id="reportBody"></div>
+  <button class="btn-ghost" id="exportPartsBtn" style="margin-top:18px;">Export all parts (CSV)</button>
+</div>
 
-<footer class="small-print hidden" id="footer">Peyper-Trails — every renewal, service and warranty, in one trail. · <a href="mailto:oddventuressa@gmail.com?subject=Peyper-Trails%20support" style="color:inherit;">Contact support</a></footer>
+<footer class="small-print hidden" id="footer">Peyper-Trails — every renewal, service and warranty, in one trail. · <button type="button" id="footerHelpBtn" class="link-btn-plain" style="color:inherit;">Help &amp; questions</button></footer>
+
+<button class="fab hidden" id="addFab" aria-label="Add asset">+</button>
 
 <!-- ===================== ADD/EDIT VEHICLE MODAL ===================== -->
 <div id="vehicleModal" class="modal-backdrop hidden">
   <div class="modal">
     <div class="modal-head">
-      <h2 id="modalTitle">Add vehicle</h2>
+      <h2 id="modalTitle">Add your asset</h2>
       <button class="modal-close" id="closeModal">&times;</button>
     </div>
 
@@ -136,67 +194,51 @@
       <input type="hidden" id="vehicleId">
 
       <div class="field">
-        <label>Name</label>
-        <input type="text" id="vName" placeholder="e.g. Hilux Bakkie, Ski Boat" required>
+        <label>Give it a name</label>
+        <input type="text" id="vName" placeholder="e.g. Hilux Bakkie, Ski Boat, Roof solar" required>
       </div>
 
       <div class="field">
-        <label>Type</label>
-        <div class="type-picker" id="typePicker">
-          <button type="button" class="type-btn" data-type="car">
-            <svg viewBox="0 0 48 32"><path d="M4 22 L8 12 Q10 9 14 9 H34 Q38 9 40 12 L44 22 M4 22 H44 M4 22 V25 H8 V22 M40 22 V25 H44 V22" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="13" cy="24" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="35" cy="24" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-            <span>Car</span>
-          </button>
-          <button type="button" class="type-btn" data-type="bakkie">
-            <svg viewBox="0 0 48 32"><path d="M3 22 L6 13 Q8 10 12 10 H24 V22 M24 13 H27 V22 M4 22 H44 V16 H33 L27 13 M4 22 V25 H8 V22 M40 22 V25 H44 V22" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="24" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="36" cy="24" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-            <span>Bakkie</span>
-          </button>
-          <button type="button" class="type-btn" data-type="boat">
-            <svg viewBox="0 0 48 32"><path d="M6 20 L42 20 L37 27 H11 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M24 20 V5 M24 5 L34 13 H24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
-            <span>Boat</span>
-          </button>
-          <button type="button" class="type-btn" data-type="trailer">
-            <svg viewBox="0 0 48 32"><path d="M2 15 H10 M10 10 H38 V22 H10 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="18" cy="24" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="30" cy="24" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-            <span>Trailer</span>
-          </button>
-          <button type="button" class="type-btn" data-type="caravan">
-            <svg viewBox="0 0 48 32"><path d="M4 22 L4 12 Q4 9 8 9 H40 Q44 9 44 13 V22 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><rect x="12" y="13" width="10" height="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="14" cy="24" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="34" cy="24" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-            <span>Caravan</span>
-          </button>
-          <button type="button" class="type-btn" data-type="haul-truck">
-            <svg viewBox="0 0 48 32"><path d="M2 22 L2 14 L14 8 L20 14 V22 M20 22 H44 V17 H20" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="9" cy="24" r="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="36" cy="24" r="4" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-            <span>Haul truck</span>
-          </button>
-          <button type="button" class="type-btn" data-type="excavator">
-            <svg viewBox="0 0 48 32"><path d="M4 24 H20 M6 24 L6 18 Q6 15 9 15 H17 Q20 15 20 18 V24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M15 15 L28 8 L34 10 L26 20 L18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
-            <span>Excavator</span>
-          </button>
-          <button type="button" class="type-btn" data-type="loader">
-            <svg viewBox="0 0 48 32"><path d="M14 24 H30 Q33 24 33 21 V15 Q33 12 30 12 H20 V24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M20 18 L8 20 L6 26 H14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="18" cy="26" r="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="29" cy="26" r="3" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-            <span>Loader</span>
-          </button>
-          <button type="button" class="type-btn" data-type="drill-rig">
-            <svg viewBox="0 0 48 32"><path d="M24 4 V26 M18 26 H30 M14 26 H34" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M18 26 L24 8 L30 26" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
-            <span>Drill rig</span>
-          </button>
-          <button type="button" class="type-btn" data-type="other">
-            <svg viewBox="0 0 48 32"><circle cx="24" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 13 Q20 9 24 9 Q28 9 28 13 Q28 16 24 17 V19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="24" cy="22" r="1.2" fill="currentColor"/></svg>
-            <span>Other</span>
-          </button>
-        </div>
+        <label>What kind of asset is it?</label>
+        <div class="type-picker type-grid" id="typePicker"></div>
         <input type="hidden" id="vType" value="car">
       </div>
 
       <div class="field">
-        <label>Licence renewal date</label>
+        <label>Photo (optional)</label>
+        <div class="field-hint-static">A picture makes it easy to spot this asset in a long list.</div>
+        <input type="file" id="vPhotoInput" accept="image/*">
+        <div id="vPhotoPreview" class="photo-preview hidden">
+          <img id="vPhotoPreviewImg" alt="Photo preview">
+        </div>
+        <button type="button" class="link-btn-plain hidden" id="vPhotoRemoveBtn" style="margin-top:8px;">Remove photo</button>
+        <div id="photoMsg" class="file-msg"></div>
+      </div>
+
+      <div class="field">
+        <label>Licence renewal date (optional)</label>
         <input type="date" id="vLicence">
       </div>
 
       <div class="field">
-        <label>Primary meter type</label>
+        <label>Where do you renew its licence?</label>
+        <select id="vRenewPlace">
+          <option value="za">South Africa (eNaTIS)</option>
+          <option value="uk">United Kingdom (GOV.UK)</option>
+          <option value="other">Another country (type the website)</option>
+        </select>
+        <div class="field" id="fRenewUrl" style="margin:10px 0 0;">
+          <input type="text" id="vRenewUrl" placeholder="https://" autocomplete="off">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>How do you measure its use?</label>
         <select id="vMeterUnit">
-          <option value="km">Kilometers (road vehicles)</option>
-          <option value="hours">Hours (plant &amp; heavy equipment)</option>
+          <option value="km">Kilometers (cars, bakkies, bikes)</option>
+          <option value="miles">Miles (cars, bakkies, bikes)</option>
+          <option value="hours">Hours (tractors &amp; heavy equipment)</option>
+          <option value="none">No meter (solar, inverters, machines)</option>
         </select>
       </div>
 
@@ -205,11 +247,11 @@
         <input type="date" id="vServiceDate">
       </div>
       <div class="field" id="fServiceKm">
-        <label>Next service &mdash; due at km (optional)</label>
+        <label id="lServiceKm">Next service &mdash; due at km (optional)</label>
         <input type="number" id="vServiceKm" placeholder="e.g. 95000">
       </div>
       <div class="field" id="fCurrentKm">
-        <label>Current odometer (km)</label>
+        <label id="lCurrentKm">Current odometer (km)</label>
         <input type="number" id="vCurrentKm" placeholder="e.g. 88000">
       </div>
       <div class="field hidden" id="fServiceHours">
@@ -227,7 +269,7 @@
       </div>
 
       <div style="display:flex; gap:10px; margin-top:24px;">
-        <button type="submit" class="btn-primary" style="flex:1;">Save vehicle</button>
+        <button type="submit" class="btn-primary" style="flex:1;">Save asset</button>
         <button type="button" class="btn-danger hidden" id="deleteVehicleBtn">Delete</button>
       </div>
     </form>
@@ -244,34 +286,123 @@
 
     <form id="partForm">
       <input type="hidden" id="partId">
+      <datalist id="brandList"></datalist>
 
+      <div class="form-step"><span class="step-no">1</span> What kind of item is it?</div>
       <div class="field">
-        <label>Part name</label>
-        <input type="text" id="pName" placeholder="e.g. Front tyres, Main battery" required>
-      </div>
-
-      <div class="field">
-        <label>Category</label>
-        <div class="type-picker" id="partCategoryPicker"></div>
+        <div class="type-picker type-grid" id="partCategoryPicker"></div>
         <input type="hidden" id="pCategory" value="other">
       </div>
 
+      <div class="form-step"><span class="step-no">2</span> Name and brand</div>
       <div class="field">
-        <label>Warranty expires &mdash; date (optional)</label>
+        <label>Give it a name</label>
+        <input type="text" id="pName" placeholder="e.g. Main battery" required>
+      </div>
+      <div class="field">
+        <label>Brand (optional)</label>
+        <input type="text" id="pBrand" list="brandList" placeholder="e.g. Willard, Continental, Pirelli" autocomplete="off">
+        <div class="field-hint-static">Use the same spelling each time, so you can compare brands later.</div>
+      </div>
+      <div class="field">
+        <label id="pSpecLabel">Size / type (optional)</label>
+        <input type="text" id="pSpec" placeholder="Size or type">
+      </div>
+      <div class="field hidden" id="fPosition">
+        <label>Position (optional)</label>
+        <select id="pPosition"><option value="">Not set</option></select>
+      </div>
+
+      <div class="form-step"><span class="step-no">3</span> Numbers and dates on the item</div>
+      <div class="field">
+        <label><span id="pSupplierLabelText">Supplier / part number (optional)</span> <button type="button" class="info-btn" data-hint="hSupplier" aria-label="More info">i</button></label>
+        <div class="field-hint hidden" id="hSupplier"></div>
+        <input type="text" id="pSupplier" placeholder="Number on the item">
+      </div>
+      <div class="field" id="fEngraved">
+        <label>Engraved date (optional) <button type="button" class="info-btn" data-hint="hEngraved" aria-label="More info">i</button></label>
+        <div class="field-hint hidden" id="hEngraved">The date your supplier engraved on the battery, often found near the supplier number.</div>
+        <input type="date" id="pEngraved">
+      </div>
+      <div class="field">
+        <label>Manufacturing date (optional) <button type="button" class="info-btn" data-hint="hManufactured" aria-label="More info">i</button></label>
+        <div class="field-hint hidden" id="hManufactured">When the item was made. Tyres show a 4-digit code after &ldquo;DOT&rdquo;: the first two digits are the week and the last two the year (2524 means week 25 of 2024). Batteries, shocks and starters often have a date code too.</div>
+        <input type="date" id="pManufactured">
+      </div>
+      <div class="field">
+        <label>Installation date (optional)</label>
+        <input type="date" id="pInstalled">
+      </div>
+      <div class="field" id="fInstalledValue">
+        <label id="pInstalledValueLabel">Reading when installed (km)</label>
+        <input type="number" id="pInstalledValue" placeholder="e.g. 85000">
+      </div>
+
+      <div class="form-step"><span class="step-no">4</span> Invoice and warranty</div>
+      <div class="field">
+        <label>Invoice number (optional)</label>
+        <input type="text" id="pInvoiceNo" placeholder="e.g. INV-004521">
+      </div>
+      <div class="field">
+        <label>Invoice date (optional)</label>
+        <input type="date" id="pInvoiceDate">
+      </div>
+      <div class="field">
+        <label>Warranty period in months, as stated (optional) <button type="button" class="info-btn" data-hint="hMonths" aria-label="More info">i</button></label>
+        <div class="field-hint hidden" id="hMonths">Type the warranty length printed on the invoice or battery, for example 24. Together with the invoice date it works out when the warranty ends.</div>
+        <input type="number" id="pWarrantyMonths" min="0" step="1" placeholder="e.g. 24">
+      </div>
+      <div class="field">
+        <label>Warranty ends on (optional) <button type="button" class="info-btn" data-hint="hWarrantyEnd" aria-label="More info">i</button></label>
+        <div class="field-hint hidden" id="hWarrantyEnd">Filled in for you from the invoice date plus the months. If your invoice states a different end date, just type it here.</div>
         <input type="date" id="pWarrantyDate">
       </div>
       <div class="field">
-        <label id="pWarrantyValueLabel">Warranty expires at km (optional)</label>
+        <label>Invoice picture or PDF (optional)</label>
+        <div class="field-hint-static">Keep the invoice here so you can prove the warranty later. Max 5 MB.</div>
+        <div id="invoiceCurrent" class="invoice-current hidden">
+          <a id="invoiceLink" data-file="" target="_blank" rel="noopener noreferrer">View saved invoice</a>
+          <button type="button" class="link-btn-plain" id="removeInvoiceBtn">Remove</button>
+        </div>
+        <input type="file" id="pInvoiceFile" accept="image/*,application/pdf">
+        <div id="invoiceFileMsg" class="file-msg"></div>
+      </div>
+
+      <div class="form-step"><span class="step-no">5</span> How do you want to track it?</div>
+      <div class="field">
+        <label>Track this item by <button type="button" class="info-btn" data-hint="hTrack" aria-label="More info">i</button></label>
+        <div class="field-hint hidden" id="hTrack">Tyres are usually kilometers, oil and hydraulic fluid are liters, machines can be hours. Choose &ldquo;Time&rdquo; to track by dates only. You decide.</div>
+        <select id="pTrackUnit">
+          <option value="km">Kilometers (km)</option>
+          <option value="miles">Miles</option>
+          <option value="liters">Liters</option>
+          <option value="hours">Hours</option>
+          <option value="time">Time (dates only)</option>
+        </select>
+      </div>
+      <div class="field" id="fWarrantyValue">
+        <label id="pWarrantyValueLabel">Warranty ends at (km)</label>
         <input type="number" id="pWarrantyValue" placeholder="e.g. 100000">
       </div>
       <div class="field">
         <label>Next service &mdash; date (optional)</label>
         <input type="date" id="pServiceDate">
       </div>
-      <div class="field">
-        <label id="pServiceValueLabel">Next service at km (optional)</label>
+      <div class="field" id="fServiceValue">
+        <label id="pServiceValueLabel">Next service at (km)</label>
         <input type="number" id="pServiceValue" placeholder="e.g. 95000">
       </div>
+      <div class="form-step"><span class="step-no">6</span> Replaced or removed?</div>
+      <div class="field-hint-static">Fill this in when the part is replaced. It stops the dial warning you about it and lets Brand reports show how long each brand lasted.</div>
+      <div class="field">
+        <label>Replaced on (optional)</label>
+        <input type="date" id="pRetiredDate">
+      </div>
+      <div class="field" id="fRetiredValue">
+        <label id="pRetiredValueLabel">Reading when replaced (km)</label>
+        <input type="number" id="pRetiredValue" placeholder="e.g. 130000">
+      </div>
+
       <div class="field">
         <label>Notes</label>
         <input type="text" id="pNotes" placeholder="Optional">
@@ -282,6 +413,50 @@
         <button type="button" class="btn-danger hidden" id="deletePartBtn">Delete</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ===================== HELP & QUESTIONS MODAL ===================== -->
+<div id="helpModal" class="modal-backdrop hidden">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Help &amp; questions</h2>
+      <button class="modal-close" id="closeHelp">&times;</button>
+    </div>
+    <div class="field">
+      <input type="search" id="helpSearch" placeholder="Search the questions, e.g. invoice" autocomplete="off">
+    </div>
+    <div id="faqList" class="faq-list"></div>
+
+    <div class="form-step" style="margin-top:22px;"><span class="step-no">?</span> Ask the helper</div>
+    <form id="askForm">
+      <div class="field">
+        <input type="text" id="askInput" maxlength="300" placeholder="Type your question" autocomplete="off">
+      </div>
+      <button type="submit" class="btn-primary" id="askBtn" style="width:100%;">Ask</button>
+    </form>
+    <div id="askAnswer" class="ask-answer"></div>
+    <p class="help-text" style="margin-top:10px;">The helper is an AI. It only knows the questions above and can make mistakes. It can't change your account, email or password.</p>
+  </div>
+</div>
+
+<!-- ===================== SHARE MODAL ===================== -->
+<div id="shareModal" class="modal-backdrop hidden">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Share this asset</h2>
+      <button class="modal-close" id="closeShare">&times;</button>
+    </div>
+    <p class="help-text">Send all the details below to someone by WhatsApp or email. You can read what will be sent first.</p>
+    <textarea id="shareText" class="share-text" readonly rows="10"></textarea>
+    <div class="share-actions">
+      <a class="btn-primary share-btn" id="shareWhatsApp" target="_blank" rel="noopener noreferrer">WhatsApp</a>
+      <a class="btn-primary share-btn" id="shareEmail">Email</a>
+      <button type="button" class="btn-outline-light share-btn" id="shareCopy">Copy</button>
+      <button type="button" class="btn-primary share-btn hidden" id="shareFiles" disabled>Send with photo &amp; invoices</button>
+      <button type="button" class="btn-outline-light share-btn hidden" id="shareNative">More&hellip;</button>
+    </div>
+    <div id="shareCopyMsg" class="help-text" style="margin:10px 0 0;"></div>
   </div>
 </div>
 
