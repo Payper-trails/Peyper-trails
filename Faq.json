@@ -1,0 +1,82 @@
+[
+ {
+  "q": "I forgot the email I signed up with. How do I find it?",
+  "a": "We can't look emails up for you, because that would also let strangers find other people's emails. Here is how to find yours:\n1. Search your email inboxes for \"Peyper-Trails\" or \"confirm\". The confirmation email we sent when you signed up went to your login email.\n2. Check your saved logins. In Chrome, open the menu, tap Password Manager and search for \"peyper\".\n3. Try your other email addresses: on the login screen tap Forgot password?, enter an address, and if it has an account a reset email will arrive."
+ },
+ {
+  "q": "I can't find my confirmation (activation) email. How do I search for it?",
+  "a": "In Gmail: tap the search bar at the top, type Peyper-Trails and tap search. If nothing shows, type in:anywhere confirm to search every folder, including Spam and Trash. Also open the Spam and Promotions folders by hand. The email may show a different sender name than Peyper-Trails. It can take a few minutes to arrive. If you try to log in and it says your email isn't confirmed, tap Resend confirmation email on the login screen. Check that you are searching the same email address you signed up with."
+ },
+ {
+  "q": "I forgot my password.",
+  "a": "On the login screen tap Forgot password?, type your email and tap send. Open the email, tap the link, and choose a new password."
+ },
+ {
+  "q": "Can you reset my email or password for me?",
+  "a": "No. For your safety nobody can change your login details for you, because we can't prove who is asking. Password resets work through the link we email you. If you can't open that email at all, use the Email us link at the bottom of Help and tell us the name of an asset you added and roughly when you signed up."
+ },
+ {
+  "q": "How do I add my first asset?",
+  "a": "Tap the big orange + on the welcome screen. Pick what kind of asset it is, give it a name, and tap Save asset. A photo, licence date and service details are optional and you can add them later. Then tap the asset's card to open it."
+ },
+ {
+  "q": "What can I add as an asset?",
+  "a": "Cars, bakkies, motorbikes, tractors, boats, trailers, caravans, haul trucks, excavators, loaders, drill rigs, solar panels, inverters, coffee machines, or anything else under Other."
+ },
+ {
+  "q": "How do I add parts to an asset?",
+  "a": "Tap the asset's card to open it, then tap the + button. Choose the kind of item (battery, tyres, shocks and so on), give it a name and brand, then fill in whatever you have: dates, invoice, warranty and service. Everything except the name is optional."
+ },
+ {
+  "q": "What does the dial mean?",
+  "a": "The needle shows whichever item is closest to being due: the licence, a service, or any part's warranty or service. Green on the left means plenty of time. Orange in the middle means it is coming up. Red on the right means it is due or overdue. Parts that are tracked in km, miles or hours count too when they use the same unit as the asset's own meter. You will see DUE SOON when a part is within 1,000 km, 600 miles or 50 hours of its number, and DUE once it is past it."
+ },
+ {
+  "q": "How is the warranty end date worked out?",
+  "a": "Enter the invoice date and the warranty period in months, as printed on the invoice, and the end date is filled in for you. If your invoice states a different end date, just type it over. The date you type is the one that is kept."
+ },
+ {
+  "q": "What are the supplier number and engraved date on a battery?",
+  "a": "Some suppliers engrave a number and a date into the battery, usually on the top or side near the terminals. Type them in so you can quote them if the battery ever needs a warranty claim."
+ },
+ {
+  "q": "How do I find a tyre's manufacturing date?",
+  "a": "Look on the tyre's sidewall for the letters DOT followed by a code. The last four digits are the week and year it was made. For example 2524 means week 25 of 2024. You can enter that date under Manufacturing date."
+ },
+ {
+  "q": "How do I keep an invoice with a part?",
+  "a": "Open the part, scroll to Invoice picture or PDF, tap Choose File, and pick a photo or a PDF up to 5 MB. Save the part. You can open or remove the invoice later by tapping the part."
+ },
+ {
+  "q": "Who can see my photos and invoices?",
+  "a": "They are stored privately in your account and can only be opened while you are logged in. When you share an asset you choose what to send."
+ },
+ {
+  "q": "How do I share an asset with someone?",
+  "a": "Open the asset and tap Share. You will see everything that will be sent. Tap WhatsApp or Email, or copy the text. On a phone you may also see a button to send the photo and invoices along with it."
+ },
+ {
+  "q": "How do I record a reading and what does flagged mean?",
+  "a": "Open the asset, tap Reading log, type the current reading and tap save. The asset's current km, miles or hours updates to match. A reading is flagged if it is lower than the last one, or more than 1.5 times higher. It is still saved, so you can check it later."
+ },
+ {
+  "q": "How do I mark a part as replaced?",
+  "a": "Open the part and fill in step 6, Replaced or removed. Add the date, and the reading when it was replaced if you track km, miles, hours or liters. A replaced part stops counting towards the dial and is used in your Brand reports."
+ },
+ {
+  "q": "How do I compare brands?",
+  "a": "On the dashboard tap Brand reports. For each kind of item you will see every brand you have used, how many parts, the average warranty, and how long they lasted once parts are marked as replaced. Use the same spelling for a brand each time so it groups together."
+ },
+ {
+  "q": "How do I renew my licence?",
+  "a": "Open the asset and tap Renew licence online. It opens the official licence website in a new tab. To change the country, tap Edit asset info and choose where you renew your licence. We never ask for or save your licence website login."
+ },
+ {
+  "q": "How do I export my information?",
+  "a": "On the dashboard tap Export readings for all your odometer and hour readings, or tap Brand reports and then Export all parts for every part with its details. Both open as spreadsheets."
+ },
+ {
+  "q": "How do I delete an asset or a part?",
+  "a": "Open it, tap Edit, and tap Delete. Deleting an asset also deletes its parts, invoices and readings, and this can't be undone."
+ }
+]
