@@ -137,6 +137,14 @@ $('closeForgotModal').addEventListener('click', () => {
   $('forgotModal').classList.add('hidden');
 });
 
+// ---------------- FORGOT EMAIL (help panel, nothing is looked up or stored) ----------------
+$('forgotEmailBtn').addEventListener('click', () => {
+  $('forgotEmailModal').classList.remove('hidden');
+});
+$('closeForgotEmailModal').addEventListener('click', () => {
+  $('forgotEmailModal').classList.add('hidden');
+});
+
 $('forgotForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const email = $('forgotEmail').value.trim();
@@ -199,6 +207,7 @@ function showAuthScreen() {
   $('authScreen').classList.remove('hidden');
   $('dashScreen').classList.add('hidden');
   $('vehicleScreen').classList.add('hidden');
+  $('reportsScreen').classList.add('hidden');
   $('addFab').classList.add('hidden');
   $('logoutBtn').classList.add('hidden');
   $('exportBtn').classList.add('hidden');
@@ -212,6 +221,7 @@ function showDashboard() {
   $('addFab').setAttribute('aria-label', 'Add vehicle');
   $('authScreen').classList.add('hidden');
   $('vehicleScreen').classList.add('hidden');
+  $('reportsScreen').classList.add('hidden');
   $('dashScreen').classList.remove('hidden');
   $('addFab').classList.remove('hidden');
   $('logoutBtn').classList.remove('hidden');
@@ -257,22 +267,17 @@ function statusFromDays(days) {
   return 'ok';
 }
 
-// Soonest due date across the licence, the service, and every part's warranty and service
+// Soonest due date across the licence, the service, and every part (dates, and km/hours when they match the asset's meter)
 function nearestStatus(vehicle) {
-  const candidates = [];
-  const add = (dateStr) => {
-    const d = daysUntil(dateStr);
-    if (d !== null) candidates.push(d);
-  };
-  add(vehicle.licence_expiry);
-  add(vehicle.service_due_date);
-  (vehicle.warranties || []).forEach(p => {
-    add(p.expiry_date);
-    add(p.next_service_date);
-  });
-  if (candidates.length === 0) return { days: null, status: null };
-  const min = Math.min(...candidates);
-  return { days: min, status: statusFromDays(min) };
+  const items = [];
+  const add = (d, meter) => { if (d !== null && d !== undefined) items.push({ d, meter }); };
+  add(daysUntil(vehicle.licence_expiry), false);
+  add(daysUntil(vehicle.service_due_date), false);
+  (vehicle.warranties || []).forEach(p => partDaysDetail(p, vehicle).forEach(x => add(x.d, x.meter)));
+  if (items.length === 0) return { days: null, status: null, byMeter: false };
+  const min = Math.min(...items.map(x => x.d));
+  const byMeter = !items.some(x => x.d === min && !x.meter);
+  return { days: min, status: statusFromDays(min), byMeter };
 }
 
 function ringColor(status) {
@@ -290,7 +295,7 @@ function speedoGaugeSVG(days) {
   const hasData = days !== null;
   const clamped = hasData ? Math.max(0, Math.min(MAX_DAYS, days)) : MAX_DAYS / 2;
   const pct = clamped / MAX_DAYS;
-  const angleDeg = 180 - pct * 180; // 180 = far left (danger), 0 = far right (safe)
+  const angleDeg = pct * 180; // 180 = far left (plenty of time, green), 0 = far right (due, red)
   const angleRad = (angleDeg * Math.PI) / 180;
 
   const pt = (radius, deg) => {
@@ -314,9 +319,9 @@ function speedoGaugeSVG(days) {
 
   return `
     <svg viewBox="0 0 150 82">
-      <path d="${arcPath(r, 180, 120)}" stroke="#c23b3b" stroke-width="11" fill="none" stroke-linecap="round" opacity="0.85"/>
-      <path d="${arcPath(r, 120, 60)}" stroke="#d99a1f" stroke-width="11" fill="none" opacity="0.85"/>
-      <path d="${arcPath(r, 60, 0)}" stroke="#3e7a52" stroke-width="11" fill="none" stroke-linecap="round" opacity="0.85"/>
+      <path d="${arcPath(r, 180, 120)}" stroke="#3e7a52" stroke-width="11" fill="none" stroke-linecap="round" opacity="0.85"/>
+      <path d="${arcPath(r, 120, 60)}" stroke="#e8832a" stroke-width="11" fill="none" opacity="0.9"/>
+      <path d="${arcPath(r, 60, 0)}" stroke="#c23b3b" stroke-width="11" fill="none" stroke-linecap="round" opacity="0.85"/>
       ${ticks}
       <line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="${needleColor}" stroke-width="3" stroke-linecap="round"/>
       <circle cx="${cx}" cy="${cy}" r="6" fill="${needleColor}"/>
@@ -349,6 +354,11 @@ const TYPE_ICONS = {
   excavator: '<svg viewBox="0 0 48 32"><path d="M4 24 H20 M6 24 L6 18 Q6 15 9 15 H17 Q20 15 20 18 V24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/><path d="M15 15 L28 8 L34 10 L26 20 L18 18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/></svg>',
   loader: '<svg viewBox="0 0 48 32"><path d="M14 24 H30 Q33 24 33 21 V15 Q33 12 30 12 H20 V24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/><path d="M20 18 L8 20 L6 26 H14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/><circle cx="18" cy="26" r="3" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="29" cy="26" r="3" fill="none" stroke="currentColor" stroke-width="2.5"/></svg>',
   'drill-rig': '<svg viewBox="0 0 48 32"><path d="M24 4 V26 M18 26 H30 M14 26 H34" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/><path d="M18 26 L24 8 L30 26" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/></svg>',
+  'motorbike': '<svg viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"><circle cx="11" cy="22" r="5"/><circle cx="37" cy="22" r="5"/><path d="M11 22 L19 13 H28 L37 22 M19 13 L16 9 H12 M28 13 L31 9 H35 M20 18 H29 L24 22"/></svg>',
+  'tractor': '<svg viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"><circle cx="14" cy="21" r="8"/><circle cx="38" cy="24" r="4.5"/><path d="M22 21 V8 H31 V15 H42 V21 H22 M36 15 V10"/></svg>',
+  'solar-panels': '<svg viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"><path d="M8 6 H40 L44 20 H4 Z"/><path d="M16 6 L14 20 M24 6 V20 M32 6 L34 20 M6 13 H42"/><path d="M24 20 V27 M17 27 H31"/></svg>',
+  'inverter': '<svg viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"><rect x="7" y="6" width="34" height="20" rx="2"/><path d="M11 16 Q14 9 17 16 T23 16"/><path d="M31 11 L28 17 H33 L30 22"/><path d="M13 26 V29 M35 26 V29"/></svg>',
+  'coffee-machine': '<svg viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"><path d="M9 5 H35 V12 H9 Z"/><path d="M11 12 V27 H33 V12"/><path d="M17 27 V22 H27 V27"/><path d="M35 9 H39 Q42 9 42 12 V14"/><path d="M20 17 H24"/></svg>',
   other: '<svg viewBox="0 0 48 32"><circle cx="24" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M20 13 Q20 9 24 9 Q28 9 28 13 Q28 16 24 17 V19" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><circle cx="24" cy="22" r="1.2" fill="currentColor"/></svg>',
 };
 
@@ -359,39 +369,254 @@ function escapeHtml(str) {
 }
 
 // ---------------- PARTS: CATEGORIES & ICONS ----------------
+// ---------------- ASSET TYPES ----------------
+const VEHICLE_TYPES = [
+  { key: 'car', label: 'Car' },
+  { key: 'bakkie', label: 'Bakkie' },
+  { key: 'motorbike', label: 'Motorbike' },
+  { key: 'tractor', label: 'Tractor' },
+  { key: 'boat', label: 'Boat' },
+  { key: 'trailer', label: 'Trailer' },
+  { key: 'caravan', label: 'Caravan' },
+  { key: 'haul-truck', label: 'Haul truck' },
+  { key: 'excavator', label: 'Excavator' },
+  { key: 'loader', label: 'Loader' },
+  { key: 'drill-rig', label: 'Drill rig' },
+  { key: 'solar-panels', label: 'Solar panels' },
+  { key: 'inverter', label: 'Inverter' },
+  { key: 'coffee-machine', label: 'Coffee machine' },
+  { key: 'other', label: 'Other' },
+];
+const MACHINE_TYPES = ['solar-panels', 'inverter', 'coffee-machine'];
+const HOURS_TYPES = ['haul-truck', 'excavator', 'loader', 'drill-rig', 'tractor'];
+
+// What the "how do you track use" box starts on when a type is picked
+function defaultMeterFor(type) {
+  if (MACHINE_TYPES.includes(type)) return 'none';
+  if (HOURS_TYPES.includes(type)) return 'hours';
+  return 'km';
+}
+
+// ---------------- PARTS: CATEGORIES & ICONS ----------------
 const partSvg = (inner, sw) => `<svg viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linejoin="round" stroke-linecap="round">${inner}</svg>`;
 
+// unit: what the item is usually measured in ('meter' = the asset's own km or hours)
 const PART_CATEGORIES = [
-  { key: 'battery', label: 'Battery', inner: '<rect x="6" y="9" width="36" height="18" rx="2"/><path d="M14 9 V6 H19 V9 M29 9 V6 H34 V9 M15 18 H21 M18 15 V21 M29 18 H35"/>' },
-  { key: 'tyres', label: 'Tyres', inner: '<circle cx="24" cy="16" r="12"/><circle cx="24" cy="16" r="5"/><path d="M24 4 V8 M24 24 V28 M12 16 H16 M32 16 H36"/>' },
-  { key: 'brakes', label: 'Brakes', inner: '<circle cx="21" cy="16" r="11"/><circle cx="21" cy="16" r="3"/><path d="M32 8 Q40 16 32 24 L29 21 Q34 16 29 11 Z"/>' },
-  { key: 'engine', label: 'Engine', inner: '<path d="M10 12 H18 V8 H30 V12 H36 V16 H40 V24 H36 V26 H12 V22 H8 V14 Z"/>' },
-  { key: 'filters', label: 'Filters', inner: '<rect x="14" y="6" width="20" height="20" rx="3"/><path d="M14 12 H34 M14 18 H34 M20 26 V29 M28 26 V29"/>' },
-  { key: 'hydraulics', label: 'Hydraulics', inner: '<rect x="6" y="11" width="22" height="10" rx="2"/><path d="M28 16 H42 M42 12 V20 M6 16 H3"/>' },
-  { key: 'electrical', label: 'Electrical', inner: '<path d="M26 3 L13 18 H23 L21 29 L35 13 H25 Z"/>' },
-  { key: 'other', label: 'Other', inner: '<circle cx="24" cy="16" r="11"/><path d="M20 13 Q20 9 24 9 Q28 9 28 13 Q28 16 24 17 V19"/><circle cx="24" cy="22" r="1.2" fill="currentColor"/>' },
+  { key: 'battery', label: 'Battery', unit: 'time', machine: true, ph: 'e.g. Main battery', inner: '<rect x="6" y="9" width="36" height="18" rx="2"/><path d="M14 9 V6 H19 V9 M29 9 V6 H34 V9 M15 18 H21 M18 15 V21 M29 18 H35"/>' },
+  { key: 'tyres', label: 'Tyres', unit: 'km', ph: 'e.g. Front left tyre', inner: '<circle cx="24" cy="16" r="12"/><circle cx="24" cy="16" r="5"/><path d="M24 4 V8 M24 24 V28 M12 16 H16 M32 16 H36"/>' },
+  { key: 'brakes', label: 'Brakes', unit: 'km', ph: 'e.g. Front brake pads', inner: '<circle cx="21" cy="16" r="11"/><circle cx="21" cy="16" r="3"/><path d="M32 8 Q40 16 32 24 L29 21 Q34 16 29 11 Z"/>' },
+  { key: 'shocks', label: 'Shocks', unit: 'km', ph: 'e.g. Front shock absorbers', inner: '<path d="M24 3 V8 M24 24 V29"/><rect x="20" y="8" width="8" height="16" rx="2"/><path d="M17 12 L31 14 M17 16 L31 18 M17 20 L31 22"/>' },
+  { key: 'wipers', label: 'Wipers', unit: 'time', ph: 'e.g. Front wiper blades', inner: '<path d="M6 27 Q24 4 42 27"/><path d="M24 27 L34 11"/><circle cx="24" cy="27" r="2"/>' },
+  { key: 'starter', label: 'Starter', unit: 'time', ph: 'e.g. Starter motor', inner: '<rect x="8" y="10" width="24" height="14" rx="3"/><path d="M32 14 H40 V20 H32 M12 10 V6 H20 V10"/>' },
+  { key: 'engine', label: 'Engine', unit: 'meter', ph: 'e.g. Engine overhaul', inner: '<path d="M10 12 H18 V8 H30 V12 H36 V16 H40 V24 H36 V26 H12 V22 H8 V14 Z"/>' },
+  { key: 'oil', label: 'Oil & fluids', unit: 'liters', ph: 'e.g. Engine oil', inner: '<path d="M24 4 C24 4 12 16 12 22 A12 8 0 0 0 36 22 C36 16 24 4 24 4 Z"/><path d="M19 22 Q19 25 23 26"/>' },
+  { key: 'filters', label: 'Filters', unit: 'meter', machine: true, ph: 'e.g. Oil filter', inner: '<rect x="14" y="6" width="20" height="20" rx="3"/><path d="M14 12 H34 M14 18 H34 M20 26 V29 M28 26 V29"/>' },
+  { key: 'hydraulics', label: 'Hydraulics', unit: 'liters', ph: 'e.g. Boom cylinder', inner: '<rect x="6" y="11" width="22" height="10" rx="2"/><path d="M28 16 H42 M42 12 V20 M6 16 H3"/>' },
+  { key: 'electrical', label: 'Electrical', unit: 'time', machine: true, ph: 'e.g. Alternator', inner: '<path d="M26 3 L13 18 H23 L21 29 L35 13 H25 Z"/>' },
+  { key: 'other', label: 'Other', unit: 'time', machine: true, ph: 'e.g. Aircon compressor', inner: '<circle cx="24" cy="16" r="11"/><path d="M20 13 Q20 9 24 9 Q28 9 28 13 Q28 16 24 17 V19"/><circle cx="24" cy="22" r="1.2" fill="currentColor"/>' },
 ];
+
+// Categories that make no sense for a given asset type
+const PART_NOT_FOR = {
+  boat: ['tyres', 'wipers', 'shocks', 'brakes'],
+  trailer: ['wipers', 'engine', 'oil', 'starter'],
+  caravan: ['wipers', 'engine', 'oil', 'starter'],
+  motorbike: ['wipers'],
+  'drill-rig': ['wipers', 'shocks'],
+};
 
 function categoryOf(key) {
   return PART_CATEGORIES.find(c => c.key === key) || PART_CATEGORIES[PART_CATEGORIES.length - 1];
 }
+function categoriesFor(v) {
+  const type = v ? v.vehicle_type : 'other';
+  if (MACHINE_TYPES.includes(type)) return PART_CATEGORIES.filter(c => c.machine);
+  const skip = PART_NOT_FOR[type] || [];
+  return PART_CATEGORIES.filter(c => !skip.includes(c.key));
+}
+
+// How an item can be tracked (the person decides)
+const TRACK_UNITS = [
+  { key: 'km', label: 'Kilometers (km)', word: 'km' },
+  { key: 'miles', label: 'Miles', word: 'miles' },
+  { key: 'liters', label: 'Liters', word: 'liters' },
+  { key: 'hours', label: 'Hours', word: 'hours' },
+  { key: 'time', label: 'Time (dates only)', word: '' },
+];
+function trackWord(unit) {
+  const u = TRACK_UNITS.find(x => x.key === unit);
+  return u ? u.word : '';
+}
+
+// Size / type box that changes with the item (we can refine these per item later)
+const PART_SPEC = {
+  battery: { label: 'Type / capacity', ph: 'e.g. 12V 70Ah' },
+  tyres: { label: 'Tyre size', ph: 'e.g. 265/65 R17', pos: true },
+  brakes: { label: 'Type', ph: 'e.g. Pads, discs', pos: true },
+  shocks: { label: 'Type', ph: 'e.g. Gas, oil', pos: true },
+  wipers: { label: 'Blade size', ph: 'e.g. 600 mm', pos: true },
+  starter: { label: 'Rating', ph: 'e.g. 12V 2.2kW' },
+  engine: { label: 'Details', ph: 'e.g. Rebuilt, reman' },
+  oil: { label: 'Grade', ph: 'e.g. 5W-30' },
+  filters: { label: 'Filter type', ph: 'e.g. Oil, air, fuel, water' },
+  hydraulics: { label: 'Fluid grade', ph: 'e.g. ISO 46' },
+  electrical: { label: 'Rating', ph: 'e.g. 12V 90A' },
+  other: { label: 'Details', ph: 'Anything useful' },
+};
+const POSITIONS = ['Front left', 'Front right', 'Rear left', 'Rear right', 'Front', 'Rear', 'Spare'];
 
 // ---------------- SMALL HELPERS ----------------
-function meterUnitOf(v) { return v && v.meter_unit === 'hours' ? 'hours' : 'km'; }
-function unitShort(unit) { return unit === 'hours' ? 'hrs' : 'km'; }
+function meterUnitOf(v) {
+  if (!v) return 'km';
+  return ['hours', 'none', 'miles'].includes(v.meter_unit) ? v.meter_unit : 'km';
+}
+const UNIT_SHORT = { km: 'km', miles: 'mi', hours: 'hrs', none: '' };
+const UNIT_WORD = { km: 'km', miles: 'miles', hours: 'hours', none: '' };
+function unitShort(unit) { return unit in UNIT_SHORT ? UNIT_SHORT[unit] : 'km'; }
+function unitWord(unit) { return unit in UNIT_WORD ? UNIT_WORD[unit] : 'km'; }
 function hasNum(x) { return x !== null && x !== undefined && x !== ''; }
 function fmtNum(x) { return Number(x).toLocaleString('en-ZA'); }
 function numOrNull(s) { return s === '' || s === null || s === undefined ? null : Number(s); }
 function todayStr() { return new Date().toLocaleDateString('en-CA'); }
 function prettyType(t) { return (t || 'other').replace(/-/g, ' '); }
+function uuid() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
 
 function currentMeter(v) {
-  const val = meterUnitOf(v) === 'hours' ? v.current_hours : v.current_km;
+  const unit = meterUnitOf(v);
+  if (unit === 'none') return null;
+  const val = unit === 'hours' ? v.current_hours : v.current_km;
   return hasNum(val) ? Number(val) : null;
 }
 function serviceDueMeter(v) {
-  const val = meterUnitOf(v) === 'hours' ? v.service_due_hours : v.service_due_km;
+  const unit = meterUnitOf(v);
+  if (unit === 'none') return null;
+  const val = unit === 'hours' ? v.service_due_hours : v.service_due_km;
   return hasNum(val) ? Number(val) : null;
+}
+
+// Warranty end = invoice date + warranty months (keeps the day, trims to month length)
+function addMonthsISO(iso, months) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  if (!m || !isFinite(months)) return '';
+  let y = +m[1];
+  let mo = +m[2] - 1 + Number(months);
+  y += Math.floor(mo / 12);
+  mo = ((mo % 12) + 12) % 12;
+  const d = Math.min(+m[3], new Date(y, mo + 1, 0).getDate());
+  return `${y}-${String(mo + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+// ---------------- MEASURING A PART (feeds the dial) ----------------
+// If a part is tracked in the same unit as its asset's meter (km or hours),
+// being past the number counts as DUE, and being close counts as "due soon".
+const NEAR_LIMIT = { km: 1000, miles: 600, hours: 50 };
+
+function meterDaysFor(p, value, v) {
+  if (!hasNum(value)) return null;
+  const pu = p.tracking_unit || 'km';
+  if (!['km', 'miles', 'hours'].includes(pu) || pu !== meterUnitOf(v)) return null;
+  const cur = currentMeter(v);
+  if (cur === null) return null;
+  const remaining = Number(value) - cur;
+  if (remaining <= 0) return 0;
+  return remaining <= NEAR_LIMIT[pu] ? 30 : null;
+}
+function minDays(list) {
+  const nums = list.filter(d => d !== null && d !== undefined);
+  return nums.length ? Math.min(...nums) : null;
+}
+// A part that has been replaced no longer counts towards the dial
+function partWarrantyDays(p, v) { return p.retired_date ? null : minDays([daysUntil(p.expiry_date), meterDaysFor(p, p.expiry_km, v)]); }
+function partServiceDays(p, v) { return p.retired_date ? null : minDays([daysUntil(p.next_service_date), meterDaysFor(p, p.next_service_value, v)]); }
+// Every due-ness for a part, noting whether it came from a km/hours number
+function partDaysDetail(p, v) {
+  if (p.retired_date) return [];
+  const out = [];
+  [p.expiry_date, p.next_service_date].forEach(d => { const n = daysUntil(d); if (n !== null) out.push({ d: n, meter: false }); });
+  [p.expiry_km, p.next_service_value].forEach(x => { const n = meterDaysFor(p, x, v); if (n !== null) out.push({ d: n, meter: true }); });
+  return out;
+}
+function partDaysList(p, v) { return partDaysDetail(p, v).map(x => x.d); }
+// Text under the dial
+function dialLabel(days, byMeter) {
+  if (days === null || days === undefined) return '—';
+  if (days <= 0) return 'DUE';
+  return byMeter ? 'DUE SOON' : `${days} days left`;
+}
+
+// ---------------- FILES: PHOTOS & INVOICES ----------------
+const BUCKET = 'asset-files';
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
+const urlCache = {}; // storage path -> { url, until }
+
+function friendlyStorageError(err) {
+  const msg = (err && err.message) || 'Upload failed';
+  if (/bucket not found/i.test(msg)) return 'File storage is not switched on yet. Please run the database update (schema_v4_part_details.sql) first.';
+  if (/row-level security|not authorized|unauthorized/i.test(msg)) return 'You are not allowed to upload here. Please log out and back in, then try again.';
+  return msg;
+}
+
+// Shrinks a photo so it uploads fast and does not use up free storage
+async function prepareImage(file, maxDim, quality) {
+  let bmp;
+  try {
+    bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  } catch (e1) {
+    try { bmp = await createImageBitmap(file); }
+    catch (e2) { throw new Error('That picture type can\'t be read. Please use a JPG or PNG picture.'); }
+  }
+  const scale = Math.min(1, maxDim / Math.max(bmp.width, bmp.height));
+  const w = Math.max(1, Math.round(bmp.width * scale));
+  const h = Math.max(1, Math.round(bmp.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(bmp, 0, 0, w, h);
+  const blob = await new Promise(res => canvas.toBlob(b => res(b), 'image/jpeg', quality));
+  if (!blob) throw new Error('That picture could not be prepared. Please try another one.');
+  return blob;
+}
+
+async function uploadFile(path, blob, contentType) {
+  const { error } = await sb.storage.from(BUCKET).upload(path, blob, { contentType, upsert: false });
+  if (error) throw new Error(friendlyStorageError(error));
+}
+
+async function removeFiles(paths) {
+  const list = (paths || []).filter(Boolean);
+  if (!list.length) return;
+  try { await sb.storage.from(BUCKET).remove(list); } catch (e) { console.error(e); }
+}
+
+// Fills in <img data-photo> and <a data-file> with short-lived private links
+async function hydrateFiles(root) {
+  const scope = root || document;
+  const els = [...scope.querySelectorAll('[data-photo], [data-file]')];
+  if (!els.length) return;
+  const pathOf = (el) => el.dataset.photo || el.dataset.file;
+  const now = Date.now();
+  const need = [...new Set(els.map(pathOf).filter(p => p && !(urlCache[p] && urlCache[p].until > now)))];
+  if (need.length) {
+    const { data, error } = await sb.storage.from(BUCKET).createSignedUrls(need, 3600);
+    if (error) { console.error(error); return; }
+    (data || []).forEach(item => {
+      if (item.signedUrl) urlCache[item.path] = { url: item.signedUrl, until: now + 50 * 60 * 1000 };
+    });
+  }
+  els.forEach(el => {
+    const hit = urlCache[pathOf(el)];
+    if (!hit) return;
+    if (el.tagName === 'IMG') el.src = hit.url; else el.href = hit.url;
+  });
 }
 
 // ---------------- DASHBOARD CARDS ----------------
@@ -400,6 +625,11 @@ function renderGrid() {
   const empty = $('emptyState');
   grid.innerHTML = '';
 
+  const totalParts = vehiclesCache.reduce((n, v) => n + (v.warranties || []).length, 0);
+  $('nextStepHint').classList.toggle('hidden', !(vehiclesCache.length > 0 && totalParts === 0));
+  if (fabMode === 'vehicle') $('addFab').classList.toggle('hidden', vehiclesCache.length === 0);
+  $('dashTools').classList.toggle('hidden', vehiclesCache.length === 0);
+
   if (vehiclesCache.length === 0) {
     empty.classList.remove('hidden');
     return;
@@ -407,8 +637,8 @@ function renderGrid() {
   empty.classList.add('hidden');
 
   vehiclesCache.forEach(v => {
-    const { days } = nearestStatus(v);
-    const daysLabel = days === null ? '—' : (days <= 0 ? 'DUE' : `${days} days left`);
+    const { days, byMeter } = nearestStatus(v);
+    const daysLabel = dialLabel(days, byMeter);
     const unit = meterUnitOf(v);
     const licStatus = statusFromDays(daysUntil(v.licence_expiry));
     const svcStatus = statusFromDays(daysUntil(v.service_due_date));
@@ -421,6 +651,7 @@ function renderGrid() {
     card.tabIndex = 0;
     card.dataset.open = v.id;
     card.innerHTML = `
+      ${v.photo_path ? `<div class="asset-photo"><img data-photo="${escapeHtml(v.photo_path)}" alt=""></div>` : ''}
       <div class="disc-head">
         <div class="speedo-gauge">${speedoGaugeSVG(days)}</div>
         <div class="speedo-readout">${daysLabel}</div>
@@ -431,7 +662,7 @@ function renderGrid() {
         <div class="disc-type">${escapeHtml(prettyType(v.vehicle_type))}</div>
       </div>
       <div class="disc-rows">
-        <div class="disc-row"><span class="k">Licence</span><span class="v">${fmtDate(v.licence_expiry)} ${tagHtml(licStatus)}</span></div>
+        ${v.licence_expiry ? `<div class="disc-row"><span class="k">Licence</span><span class="v">${fmtDate(v.licence_expiry)} ${tagHtml(licStatus)}</span></div>` : ''}
         ${v.service_due_date ? `<div class="disc-row"><span class="k">Service due</span><span class="v">${fmtDate(v.service_due_date)} ${tagHtml(svcStatus)}</span></div>` : ''}
         ${dueAt !== null ? `<div class="disc-row"><span class="k">Service at</span><span class="v">${fmtNum(dueAt)} ${unitShort(unit)}</span></div>` : ''}
         <div class="disc-row"><span class="k">Parts tracked</span><span class="v">${partsCount}</span></div>
@@ -452,6 +683,7 @@ function renderGrid() {
       }
     });
   });
+  hydrateFiles(grid);
 }
 
 // ---------------- VEHICLE PAGE ----------------
@@ -478,6 +710,7 @@ $('backBtn').addEventListener('click', () => {
 
 window.addEventListener('popstate', (e) => {
   if (!currentUser) return;
+  if (e.state && e.state.reports) { showReports(false); return; }
   const id = e.state && e.state.vehicleId;
   if (id && vehiclesCache.find(v => v.id === id)) {
     openVehiclePage(id, false);
@@ -486,25 +719,83 @@ window.addEventListener('popstate', (e) => {
   }
 });
 
-// Soonest due date (warranty end or next service) for a part, in days — used to sort the parts list
-function partNearestDays(p) {
-  const list = [daysUntil(p.expiry_date), daysUntil(p.next_service_date)].filter(d => d !== null);
+// Official online licence renewal (South Africa). Opens in a new tab: we never store anyone's NATIS login.
+const RENEW_PRESETS = { za: 'https://www.enatis.com', uk: 'https://www.gov.uk/vehicle-tax' };
+function renewUrlFor(v) { return (v && v.licence_url) || RENEW_PRESETS.za; }
+
+function partNearestDays(p, v) {
+  const list = partDaysList(p, v);
   return list.length ? Math.min(...list) : Infinity;
+}
+
+function daysBetween(fromIso, toIso) {
+  const f = new Date(fromIso + 'T00:00:00'), t = new Date(toIso + 'T00:00:00');
+  return Math.round((t - f) / 86400000);
+}
+
+// How long a replaced part lasted: days, and distance/hours/liters if both readings were entered
+function lifeOf(p) {
+  const days = p.retired_date && p.installation_date ? daysBetween(p.installation_date, p.retired_date) : null;
+  const tu = p.tracking_unit || 'km';
+  const dist = tu !== 'time' && hasNum(p.installed_value) && hasNum(p.retired_value) && Number(p.retired_value) >= Number(p.installed_value)
+    ? Number(p.retired_value) - Number(p.installed_value) : null;
+  return { days: days !== null && days >= 0 ? days : null, dist, unit: tu };
+}
+
+function partCardHtml(p, v) {
+  const cat = categoryOf(p.category);
+  const tu = p.tracking_unit || 'km';
+  const word = trackWord(tu);
+  const retired = !!p.retired_date;
+  const wStatus = statusFromDays(partWarrantyDays(p, v));
+  const sStatus = statusFromDays(partServiceDays(p, v));
+  const wLine = [p.expiry_date ? fmtDate(p.expiry_date) : '', hasNum(p.expiry_km) && word ? `${fmtNum(p.expiry_km)} ${word}` : ''].filter(Boolean).join(' · ');
+  const sLine = [p.next_service_date ? fmtDate(p.next_service_date) : '', hasNum(p.next_service_value) && word ? `${fmtNum(p.next_service_value)} ${word}` : ''].filter(Boolean).join(' · ');
+  const life = lifeOf(p);
+  const lifeLine = [life.days !== null ? `${fmtNum(life.days)} days` : '', life.dist !== null && word ? `${fmtNum(life.dist)} ${word}` : ''].filter(Boolean).join(' · ');
+  const rows = [
+    p.installation_date ? `<div class="disc-row"><span class="k">Installed</span><span class="v">${fmtDate(p.installation_date)}</span></div>` : '',
+    p.invoice_number ? `<div class="disc-row"><span class="k">Invoice no.</span><span class="v">${escapeHtml(p.invoice_number)}</span></div>` : '',
+    wLine ? `<div class="disc-row"><span class="k">Warranty ends</span><span class="v">${wLine}</span></div>` : '',
+    !retired && sLine ? `<div class="disc-row"><span class="k">Next service</span><span class="v">${sLine}</span></div>` : '',
+    retired ? `<div class="disc-row"><span class="k">Replaced</span><span class="v">${fmtDate(p.retired_date)}</span></div>` : '',
+    retired && lifeLine ? `<div class="disc-row"><span class="k">Lasted</span><span class="v">${lifeLine}</span></div>` : '',
+  ].join('');
+  const sub = [p.brand ? escapeHtml(p.brand) : '', p.spec ? escapeHtml(p.spec) : '', p.position ? escapeHtml(p.position) : '', escapeHtml(cat.label)].filter(Boolean).join(' · ');
+  const tags = retired
+    ? '<span class="tag tag-neutral">Replaced</span>' + (p.invoice_path ? '<span class="tag tag-neutral">Invoice saved</span>' : '')
+    : tagHtml(wStatus, 'Warranty') + tagHtml(sStatus, 'Service') + (p.invoice_path ? '<span class="tag tag-neutral">Invoice saved</span>' : '');
+
+  return `
+    <div class="part-card${retired ? ' part-retired' : ''}" role="button" tabindex="0" data-part="${p.id}">
+      <div class="part-top">
+        <span class="part-icon">${partSvg(cat.inner, 2.5)}</span>
+        <div>
+          <div class="part-name">${escapeHtml(p.item_name)}</div>
+          <div class="part-cat">${sub}</div>
+        </div>
+      </div>
+      <div class="part-tags">${tags}</div>
+      <div class="disc-rows">${rows || '<div class="part-notes">No dates set yet. Tap to add them.</div>'}</div>
+      ${p.notes ? `<div class="part-notes">${escapeHtml(p.notes)}</div>` : ''}
+    </div>`;
 }
 
 function renderVehiclePage() {
   const v = vehiclesCache.find(x => x.id === currentVehicleId);
   if (!v) return;
   const unit = meterUnitOf(v);
-  const { days } = nearestStatus(v);
-  const daysLabel = days === null ? '—' : (days <= 0 ? 'DUE' : `${days} days left`);
+  const { days, byMeter } = nearestStatus(v);
+  const daysLabel = dialLabel(days, byMeter);
   const cur = currentMeter(v);
   const dueAt = serviceDueMeter(v);
   const licStatus = statusFromDays(daysUntil(v.licence_expiry));
   const svcStatus = statusFromDays(daysUntil(v.service_due_date));
+  const isRoad = !MACHINE_TYPES.includes(v.vehicle_type) && !['boat', 'drill-rig'].includes(v.vehicle_type);
 
   $('vehicleHeader').innerHTML = `
     <div class="disc-card vehicle-head">
+      ${v.photo_path ? `<div class="asset-photo asset-photo-big"><img data-photo="${escapeHtml(v.photo_path)}" alt=""></div>` : ''}
       <div class="disc-head">
         <div class="speedo-gauge">${speedoGaugeSVG(days)}</div>
         <div class="speedo-readout">${daysLabel}</div>
@@ -515,56 +806,30 @@ function renderVehiclePage() {
         <div class="disc-type">${escapeHtml(prettyType(v.vehicle_type))}</div>
       </div>
       <div class="disc-rows">
-        <div class="disc-row"><span class="k">${unit === 'hours' ? 'Hour meter' : 'Odometer'}</span><span class="v">${cur !== null ? fmtNum(cur) + ' ' + unitShort(unit) : '—'}</span></div>
-        <div class="disc-row"><span class="k">Licence</span><span class="v">${fmtDate(v.licence_expiry)} ${tagHtml(licStatus)}</span></div>
+        ${unit !== 'none' ? `<div class="disc-row"><span class="k">${unit === 'hours' ? 'Hour meter' : 'Odometer'}</span><span class="v">${cur !== null ? fmtNum(cur) + ' ' + unitShort(unit) : '—'}</span></div>` : ''}
+        ${v.licence_expiry ? `<div class="disc-row"><span class="k">Licence</span><span class="v">${fmtDate(v.licence_expiry)} ${tagHtml(licStatus)}</span></div>` : ''}
         ${v.service_due_date ? `<div class="disc-row"><span class="k">Service due</span><span class="v">${fmtDate(v.service_due_date)} ${tagHtml(svcStatus)}</span></div>` : ''}
         ${dueAt !== null ? `<div class="disc-row"><span class="k">Service at</span><span class="v">${fmtNum(dueAt)} ${unitShort(unit)}</span></div>` : ''}
         ${v.notes ? `<div class="disc-row"><span class="k">Notes</span><span class="v" style="font-family:'Inter',sans-serif; font-weight:500; text-align:right;">${escapeHtml(v.notes)}</span></div>` : ''}
       </div>
       <div class="vehicle-actions">
-        <button class="btn-primary" id="editVehicleBtn">Edit vehicle info</button>
-        <button class="btn-outline-dark" id="readingLogBtn">Reading log</button>
+        <button class="btn-primary" id="editVehicleBtn">Edit asset info</button>
+        ${unit !== 'none' ? '<button class="btn-outline-dark" id="readingLogBtn">Reading log</button>' : ''}
+        <button class="btn-outline-dark" id="shareBtn">Share</button>
       </div>
+      ${isRoad ? `<a class="renew-link" id="renewLink" href="${escapeHtml(renewUrlFor(v))}" target="_blank" rel="noopener noreferrer">Renew licence online &rarr;</a>` : ''}
     </div>
   `;
   $('editVehicleBtn').addEventListener('click', () => openModal(v.id));
-  $('readingLogBtn').addEventListener('click', () => openReadingLog(v.id));
+  if ($('readingLogBtn')) $('readingLogBtn').addEventListener('click', () => openReadingLog(v.id));
+  $('shareBtn').addEventListener('click', () => openShare(v.id));
 
-  const parts = (v.warranties || []).slice().sort((a, b) => partNearestDays(a) - partNearestDays(b));
+  const parts = (v.warranties || []).slice().sort((a, b) => (!!a.retired_date - !!b.retired_date) || (partNearestDays(a, v) - partNearestDays(b, v)));
   const grid = $('partsGrid');
-  grid.innerHTML = '';
+  grid.innerHTML = parts.map(p => partCardHtml(p, v)).join('');
   $('partsEmpty').classList.toggle('hidden', parts.length > 0);
-
-  parts.forEach(p => {
-    const cat = categoryOf(p.category);
-    const wStatus = statusFromDays(daysUntil(p.expiry_date));
-    const sStatus = statusFromDays(daysUntil(p.next_service_date));
-    const hasWarranty = p.expiry_date || hasNum(p.expiry_km);
-    const hasService = p.next_service_date || hasNum(p.next_service_value);
-
-    const card = document.createElement('div');
-    card.className = 'part-card';
-    card.setAttribute('role', 'button');
-    card.tabIndex = 0;
-    card.dataset.part = p.id;
-    card.innerHTML = `
-      <div class="part-top">
-        <span class="part-icon">${partSvg(cat.inner, 2.5)}</span>
-        <div>
-          <div class="part-name">${escapeHtml(p.item_name)}</div>
-          <div class="part-cat">${escapeHtml(cat.label)}</div>
-        </div>
-      </div>
-      <div class="part-tags">${tagHtml(wStatus, 'Warranty')}${tagHtml(sStatus, 'Service')}</div>
-      <div class="disc-rows">
-        ${hasWarranty ? `<div class="disc-row"><span class="k">Warranty ends</span><span class="v">${p.expiry_date ? fmtDate(p.expiry_date) : ''}${p.expiry_date && hasNum(p.expiry_km) ? ' · ' : ''}${hasNum(p.expiry_km) ? fmtNum(p.expiry_km) + ' ' + unitShort(unit) : ''}</span></div>` : ''}
-        ${hasService ? `<div class="disc-row"><span class="k">Next service</span><span class="v">${p.next_service_date ? fmtDate(p.next_service_date) : ''}${p.next_service_date && hasNum(p.next_service_value) ? ' · ' : ''}${hasNum(p.next_service_value) ? fmtNum(p.next_service_value) + ' ' + unitShort(unit) : ''}</span></div>` : ''}
-        ${!hasWarranty && !hasService ? '<div class="part-notes">No dates set yet. Tap to add them.</div>' : ''}
-      </div>
-      ${p.notes ? `<div class="part-notes">${escapeHtml(p.notes)}</div>` : ''}
-    `;
-    grid.appendChild(card);
-  });
+  $('partsTitle').classList.toggle('hidden', parts.length === 0);
+  if (fabMode === 'part') $('addFab').classList.toggle('hidden', parts.length === 0);
 
   grid.querySelectorAll('[data-part]').forEach(card => {
     card.addEventListener('click', () => openPartModal(card.dataset.part));
@@ -575,17 +840,35 @@ function renderVehiclePage() {
       }
     });
   });
+  hydrateFiles($('vehicleScreen'));
 }
 
-// The round + button: adds a vehicle on the dashboard, adds a part on a vehicle page
-$('addFab').addEventListener('click', () => {
+// The round + button: adds an asset on the dashboard, adds a part on an asset page
+function addByFab() {
   if (fabMode === 'part' && currentVehicleId) openPartModal(null);
   else openModal(null);
+}
+$('addFab').addEventListener('click', addByFab);
+$('firstAssetBtn').addEventListener('click', () => openModal(null));
+$('firstPartBtn').addEventListener('click', () => openPartModal(null));
+
+// Small "i" buttons open a short explanation under the field
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('.info-btn');
+  if (!b) return;
+  const el = $(b.dataset.hint);
+  if (el) el.classList.toggle('hidden');
 });
 
 // ---------------- MODAL: ADD/EDIT PART ----------------
-function buildCategoryPicker() {
-  $('partCategoryPicker').innerHTML = PART_CATEGORIES.map(c => `
+let partTouched = { unit: false, expiry: false, installedValue: false };
+let pendingInvoice = null;   // { blob, type, ext } chosen but not yet uploaded
+let removeInvoice = false;
+
+function renderCategoryPicker(v, selected) {
+  let cats = categoriesFor(v);
+  if (selected && !cats.find(c => c.key === selected)) cats = cats.concat([categoryOf(selected)]);
+  $('partCategoryPicker').innerHTML = cats.map(c => `
     <button type="button" class="type-btn" data-category="${c.key}">
       ${partSvg(c.inner, 2)}
       <span>${c.label}</span>
@@ -596,63 +879,248 @@ function buildCategoryPicker() {
   });
 }
 
-function setPartCategory(key) {
-  $('pCategory').value = key;
+function defaultUnitFor(cat, v) {
+  if (cat.unit === 'meter') {
+    const mu = meterUnitOf(v);
+    return mu === 'none' ? 'time' : mu;
+  }
+  return cat.unit;
+}
+
+function setPartCategory(key, fromUser = true) {
+  const v = vehiclesCache.find(x => x.id === currentVehicleId);
+  const cat = categoryOf(key);
+  $('pCategory').value = cat.key;
   $('partCategoryPicker').querySelectorAll('.type-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.category === key);
+    btn.classList.toggle('active', btn.dataset.category === cat.key);
   });
+  $('pName').placeholder = cat.ph;
+  const spec = PART_SPEC[cat.key] || PART_SPEC.other;
+  $('pSpecLabel').textContent = `${spec.label} (optional)`;
+  $('pSpec').placeholder = spec.ph;
+  $('fPosition').classList.toggle('hidden', !spec.pos);
+  const battery = cat.key === 'battery';
+  $('pSupplierLabelText').textContent = battery ? 'Supplier number (engraved number on your battery)' : 'Supplier / part number (optional)';
+  $('hSupplier').textContent = battery
+    ? 'The number your supplier engraved on the battery. Look on the top or side of the battery, usually near the terminals.'
+    : 'The supplier\'s part number or serial number for this item, if it has one. You can usually find it on the item or on the invoice.';
+  $('fEngraved').classList.toggle('hidden', !battery);
+  if (fromUser && !partTouched.unit) {
+    $('pTrackUnit').value = defaultUnitFor(cat, v);
+    applyTrackUnit();
+  }
+}
+
+function applyTrackUnit() {
+  const u = $('pTrackUnit').value;
+  const word = trackWord(u);
+  const show = u !== 'time';
+  $('fWarrantyValue').classList.toggle('hidden', !show);
+  $('fServiceValue').classList.toggle('hidden', !show);
+  $('fInstalledValue').classList.toggle('hidden', !show);
+  $('fRetiredValue').classList.toggle('hidden', !show);
+  $('pWarrantyValueLabel').textContent = `Warranty ends at (${word})`;
+  $('pServiceValueLabel').textContent = `Next service at (${word})`;
+  $('pInstalledValueLabel').textContent = `Reading when installed (${word})`;
+  $('pRetiredValueLabel').textContent = `Reading when replaced (${word})`;
+  // New part measured in the asset's own unit: start the "installed at" box on the asset's current reading
+  if (!partTouched.installedValue && !$('partId').value) {
+    const v = vehiclesCache.find(x => x.id === currentVehicleId);
+    const cur = v ? currentMeter(v) : null;
+    $('pInstalledValue').value = show && v && u === meterUnitOf(v) && cur !== null ? cur : '';
+  }
+}
+
+function refreshBrandList() {
+  const brands = new Set();
+  vehiclesCache.forEach(v => (v.warranties || []).forEach(p => { if (p.brand) brands.add(p.brand); }));
+  $('brandList').innerHTML = [...brands].sort().map(b => `<option value="${escapeHtml(b)}"></option>`).join('');
+}
+
+function autoWarrantyEnd() {
+  if (partTouched.expiry) return;
+  const months = numOrNull($('pWarrantyMonths').value);
+  const end = months !== null && $('pInvoiceDate').value ? addMonthsISO($('pInvoiceDate').value, months) : '';
+  if (end) $('pWarrantyDate').value = end;
+}
+
+function showInvoiceState(p) {
+  const has = p && p.invoice_path && !removeInvoice;
+  $('invoiceCurrent').classList.toggle('hidden', !has);
+  if (has) {
+    const a = $('invoiceLink');
+    a.dataset.file = p.invoice_path;
+    a.removeAttribute('href');
+    hydrateFiles($('invoiceCurrent'));
+  }
 }
 
 function openPartModal(partId) {
   const v = vehiclesCache.find(x => x.id === currentVehicleId);
   if (!v) return;
   const p = partId ? (v.warranties || []).find(x => x.id === partId) : null;
-  const unit = unitShort(meterUnitOf(v));
+
+  partTouched = { unit: !!p, expiry: false, installedValue: !!p };
+  pendingInvoice = null;
+  removeInvoice = false;
+  refreshBrandList();
+  renderCategoryPicker(v, p ? p.category : null);
 
   $('partId').value = p ? p.id : '';
   $('pName').value = p ? p.item_name : '';
-  setPartCategory(p && p.category ? p.category : 'other');
+  $('pBrand').value = p ? (p.brand || '') : '';
+  $('pSpec').value = p ? (p.spec || '') : '';
+  $('pPosition').value = p ? (p.position || '') : '';
+  $('pInstalledValue').value = p && hasNum(p.installed_value) ? p.installed_value : '';
+  $('pRetiredDate').value = p ? (p.retired_date || '') : '';
+  $('pRetiredValue').value = p && hasNum(p.retired_value) ? p.retired_value : '';
+  $('pSupplier').value = p ? (p.supplier_number || '') : '';
+  $('pEngraved').value = p ? (p.engraved_date || '') : '';
+  $('pManufactured').value = p ? (p.manufacturing_date || '') : '';
+  $('pInstalled').value = p ? (p.installation_date || '') : '';
+  $('pInvoiceNo').value = p ? (p.invoice_number || '') : '';
+  $('pInvoiceDate').value = p ? (p.invoice_date || '') : '';
+  $('pWarrantyMonths').value = p && hasNum(p.warranty_months) ? p.warranty_months : '';
   $('pWarrantyDate').value = p ? (p.expiry_date || '') : '';
   $('pWarrantyValue').value = p && hasNum(p.expiry_km) ? p.expiry_km : '';
   $('pServiceDate').value = p ? (p.next_service_date || '') : '';
   $('pServiceValue').value = p && hasNum(p.next_service_value) ? p.next_service_value : '';
   $('pNotes').value = p ? (p.notes || '') : '';
-  $('pWarrantyValueLabel').textContent = `Warranty expires at ${unit} (optional)`;
-  $('pServiceValueLabel').textContent = `Next service at ${unit} (optional)`;
+  $('pInvoiceFile').value = '';
+  $('invoiceFileMsg').textContent = '';
+  $('invoiceFileMsg').className = 'file-msg';
+
+  setPartCategory(p && p.category ? p.category : 'other', false);
+  if (p) {
+    $('pTrackUnit').value = p.tracking_unit || 'km';
+    // If the saved end date differs from invoice date + months, the person typed it: do not overwrite it
+    const calc = p.invoice_date && hasNum(p.warranty_months) ? addMonthsISO(p.invoice_date, p.warranty_months) : '';
+    partTouched.expiry = !!(p.expiry_date && calc !== p.expiry_date);
+  } else {
+    $('pTrackUnit').value = defaultUnitFor(categoryOf('other'), v);
+    // pick the first category shown so the form always starts with a real choice
+    const first = categoriesFor(v)[0];
+    setPartCategory(first.key, true);
+  }
+  applyTrackUnit();
+  showInvoiceState(p);
+  document.querySelectorAll('#partModal .field-hint').forEach(h => h.classList.add('hidden'));
   $('partModalTitle').textContent = p ? 'Edit part' : 'Add part';
   $('deletePartBtn').classList.toggle('hidden', !p);
   $('partModal').classList.remove('hidden');
+  $('partModal').querySelector('.modal').scrollTop = 0;
 }
 
 function closePartModal() {
   $('partModal').classList.add('hidden');
 }
 $('closePartModal').addEventListener('click', closePartModal);
+$('pTrackUnit').addEventListener('change', () => { partTouched.unit = true; applyTrackUnit(); });
+$('pInstalledValue').addEventListener('input', () => { partTouched.installedValue = true; });
+$('pInvoiceDate').addEventListener('change', autoWarrantyEnd);
+$('pWarrantyMonths').addEventListener('input', autoWarrantyEnd);
+$('pWarrantyDate').addEventListener('input', () => { partTouched.expiry = true; });
+$('removeInvoiceBtn').addEventListener('click', () => {
+  removeInvoice = true;
+  $('invoiceCurrent').classList.add('hidden');
+});
+
+$('pInvoiceFile').addEventListener('change', async (e) => {
+  const f = e.target.files[0];
+  const msg = $('invoiceFileMsg');
+  pendingInvoice = null;
+  msg.className = 'file-msg';
+  msg.textContent = '';
+  if (!f) return;
+  try {
+    if (f.type === 'application/pdf') {
+      if (f.size > MAX_FILE_BYTES) throw new Error('That PDF is bigger than 5 MB. Please take a photo of the invoice instead.');
+      pendingInvoice = { blob: f, type: 'application/pdf', ext: 'pdf' };
+    } else if (f.type.startsWith('image/')) {
+      const blob = await prepareImage(f, 1800, 0.8);
+      if (blob.size > MAX_FILE_BYTES) throw new Error('That picture is too large. Please try a smaller one.');
+      pendingInvoice = { blob, type: 'image/jpeg', ext: 'jpg' };
+    } else {
+      throw new Error('Please choose a photo or a PDF of the invoice.');
+    }
+    msg.textContent = `Ready to save: ${f.name}`;
+  } catch (err) {
+    e.target.value = '';
+    msg.className = 'file-msg file-msg-bad';
+    msg.textContent = err.message;
+  }
+});
 
 $('partForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-  if (!currentVehicleId) return;
-  const id = $('partId').value || null;
+  const v = vehiclesCache.find(x => x.id === currentVehicleId);
+  if (!v) return;
+  const existingId = $('partId').value || null;
+  const existing = existingId ? (v.warranties || []).find(x => x.id === existingId) : null;
+  const id = existingId || uuid();
+
+  const invoiceDate = $('pInvoiceDate').value || null;
+  const months = numOrNull($('pWarrantyMonths').value);
+  let expiry = $('pWarrantyDate').value || null;
+  if (!expiry && invoiceDate && months !== null) expiry = addMonthsISO(invoiceDate, months) || null;
+
   const payload = {
-    vehicle_id: currentVehicleId,
+    vehicle_id: v.id,
     user_id: currentUser.id,
     item_name: $('pName').value.trim(),
     category: $('pCategory').value || 'other',
-    expiry_date: $('pWarrantyDate').value || null,
+    brand: $('pBrand').value.trim() || null,
+    spec: $('pSpec').value.trim() || null,
+    position: $('pPosition').value || null,
+    installed_value: numOrNull($('pInstalledValue').value),
+    retired_date: $('pRetiredDate').value || null,
+    retired_value: numOrNull($('pRetiredValue').value),
+    supplier_number: $('pSupplier').value.trim() || null,
+    engraved_date: $('pEngraved').value || null,
+    manufacturing_date: $('pManufactured').value || null,
+    installation_date: $('pInstalled').value || null,
+    invoice_number: $('pInvoiceNo').value.trim() || null,
+    invoice_date: invoiceDate,
+    warranty_months: months,
+    expiry_date: expiry,
+    tracking_unit: $('pTrackUnit').value,
     expiry_km: numOrNull($('pWarrantyValue').value),
     next_service_date: $('pServiceDate').value || null,
     next_service_value: numOrNull($('pServiceValue').value),
     notes: $('pNotes').value.trim() || null,
   };
   if (!payload.item_name) return;
+  if ($('pTrackUnit').value === 'time') { payload.expiry_km = null; payload.next_service_value = null; payload.installed_value = null; payload.retired_value = null; }
+  if ($('fPosition').classList.contains('hidden')) payload.position = null;
 
-  $('partSaveBtn').disabled = true;
-  const { error } = id
-    ? await sb.from('warranties').update(payload).eq('id', id)
-    : await sb.from('warranties').insert(payload);
-  $('partSaveBtn').disabled = false;
-  if (error) { alert(error.message); return; }
+  const saveBtn = $('partSaveBtn');
+  saveBtn.disabled = true;
+  let newPath = null;
+  try {
+    if (pendingInvoice) {
+      newPath = `${currentUser.id}/invoices/${id}-${Date.now()}.${pendingInvoice.ext}`;
+      await uploadFile(newPath, pendingInvoice.blob, pendingInvoice.type);
+      payload.invoice_path = newPath;
+    } else if (removeInvoice) {
+      payload.invoice_path = null;
+    }
 
+    let error;
+    if (existingId) {
+      ({ error } = await sb.from('warranties').update(payload).eq('id', existingId));
+    } else {
+      ({ error } = await sb.from('warranties').insert({ ...payload, id }));
+    }
+    if (error) throw error;
+
+    if (existing && existing.invoice_path && (newPath || removeInvoice)) await removeFiles([existing.invoice_path]);
+  } catch (err) {
+    if (newPath) await removeFiles([newPath]);
+    saveBtn.disabled = false;
+    alert(err.message || 'Could not save this part. Please try again.');
+    return;
+  }
+  saveBtn.disabled = false;
   closePartModal();
   await loadVehicles();
 });
@@ -661,41 +1129,36 @@ $('deletePartBtn').addEventListener('click', async () => {
   const id = $('partId').value;
   if (!id) return;
   if (!confirm('Delete this part? This can\'t be undone.')) return;
+  const v = vehiclesCache.find(x => x.id === currentVehicleId);
+  const existing = v ? (v.warranties || []).find(x => x.id === id) : null;
   const { error } = await sb.from('warranties').delete().eq('id', id);
   if (error) { alert(error.message); return; }
+  if (existing && existing.invoice_path) await removeFiles([existing.invoice_path]);
   closePartModal();
   await loadVehicles();
 });
 
-// ---------------- MODAL: ADD/EDIT VEHICLE ----------------
-$('closeModal').addEventListener('click', closeModal);
+// ---------------- MODAL: ADD/EDIT ASSET ----------------
+let meterTouched = false;
+let pendingPhoto = null;   // Blob chosen but not yet uploaded
+let removePhoto = false;
 
-function applyMeterUnit() {
-  const hours = $('vMeterUnit').value === 'hours';
-  $('fServiceKm').classList.toggle('hidden', hours);
-  $('fCurrentKm').classList.toggle('hidden', hours);
-  $('fServiceHours').classList.toggle('hidden', !hours);
-  $('fCurrentHours').classList.toggle('hidden', !hours);
-}
-$('vMeterUnit').addEventListener('change', applyMeterUnit);
-
-function openModal(vehicleId) {
-  const v = vehicleId ? vehiclesCache.find(x => x.id === vehicleId) : null;
-  $('vehicleId').value = v ? v.id : '';
-  $('vName').value = v ? v.name : '';
-  setVehicleType(v ? v.vehicle_type : 'car');
-  $('vLicence').value = v ? (v.licence_expiry || '') : '';
-  $('vMeterUnit').value = v ? meterUnitOf(v) : 'km';
-  $('vServiceDate').value = v ? (v.service_due_date || '') : '';
-  $('vServiceKm').value = v && hasNum(v.service_due_km) ? v.service_due_km : '';
-  $('vCurrentKm').value = v && hasNum(v.current_km) ? v.current_km : '';
-  $('vServiceHours').value = v && hasNum(v.service_due_hours) ? v.service_due_hours : '';
-  $('vCurrentHours').value = v && hasNum(v.current_hours) ? v.current_hours : '';
-  $('vNotes').value = v ? (v.notes || '') : '';
-  $('modalTitle').textContent = v ? 'Edit vehicle' : 'Add vehicle';
-  $('deleteVehicleBtn').classList.toggle('hidden', !v);
-  applyMeterUnit();
-  $('vehicleModal').classList.remove('hidden');
+function buildTypePicker() {
+  $('typePicker').innerHTML = VEHICLE_TYPES.map(t => `
+    <button type="button" class="type-btn" data-type="${t.key}">
+      ${TYPE_ICONS[t.key] || TYPE_ICONS.other}
+      <span>${t.label}</span>
+    </button>
+  `).join('');
+  $('typePicker').querySelectorAll('.type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      setVehicleType(btn.dataset.type);
+      if (!$('vehicleId').value && !meterTouched) {
+        $('vMeterUnit').value = defaultMeterFor(btn.dataset.type);
+        applyMeterUnit();
+      }
+    });
+  });
 }
 
 function setVehicleType(type) {
@@ -705,23 +1168,128 @@ function setVehicleType(type) {
   });
 }
 
-document.querySelectorAll('#typePicker .type-btn').forEach(btn => {
-  btn.addEventListener('click', () => setVehicleType(btn.dataset.type));
-});
+function applyRenewPlace() {
+  $('fRenewUrl').classList.toggle('hidden', $('vRenewPlace').value !== 'other');
+}
+$('vRenewPlace').addEventListener('change', applyRenewPlace);
+
+function applyMeterUnit() {
+  const u = $('vMeterUnit').value;
+  const dist = u === 'km' || u === 'miles';
+  const w = u === 'miles' ? 'miles' : 'km';
+  $('lServiceKm').textContent = `Next service \u2014 due at ${w} (optional)`;
+  $('lCurrentKm').textContent = u === 'miles' ? 'Current odometer (miles)' : 'Current odometer (km)';
+  $('fServiceKm').classList.toggle('hidden', !dist);
+  $('fCurrentKm').classList.toggle('hidden', !dist);
+  $('fServiceHours').classList.toggle('hidden', u !== 'hours');
+  $('fCurrentHours').classList.toggle('hidden', u !== 'hours');
+}
+$('vMeterUnit').addEventListener('change', () => { meterTouched = true; applyMeterUnit(); });
+$('closeModal').addEventListener('click', closeModal);
+
+function showPhotoPreview(src) {
+  $('vPhotoPreview').classList.toggle('hidden', !src);
+  if (src) $('vPhotoPreviewImg').src = src;
+  $('vPhotoRemoveBtn').classList.toggle('hidden', !src);
+}
+
+function openModal(vehicleId) {
+  const v = vehicleId ? vehiclesCache.find(x => x.id === vehicleId) : null;
+  meterTouched = !!v;
+  pendingPhoto = null;
+  removePhoto = false;
+  $('vehicleId').value = v ? v.id : '';
+  $('vName').value = v ? v.name : '';
+  setVehicleType(v ? v.vehicle_type : 'car');
+  $('vLicence').value = v ? (v.licence_expiry || '') : '';
+  $('vMeterUnit').value = v ? meterUnitOf(v) : 'km';
+  const lu = v && v.licence_url ? v.licence_url : '';
+  $('vRenewPlace').value = !lu ? 'za' : (lu === RENEW_PRESETS.uk ? 'uk' : (lu === RENEW_PRESETS.za ? 'za' : 'other'));
+  $('vRenewUrl').value = $('vRenewPlace').value === 'other' ? lu : '';
+  applyRenewPlace();
+  $('vServiceDate').value = v ? (v.service_due_date || '') : '';
+  $('vServiceKm').value = v && hasNum(v.service_due_km) ? v.service_due_km : '';
+  $('vCurrentKm').value = v && hasNum(v.current_km) ? v.current_km : '';
+  $('vServiceHours').value = v && hasNum(v.service_due_hours) ? v.service_due_hours : '';
+  $('vCurrentHours').value = v && hasNum(v.current_hours) ? v.current_hours : '';
+  $('vNotes').value = v ? (v.notes || '') : '';
+  $('vPhotoInput').value = '';
+  $('photoMsg').textContent = '';
+  $('photoMsg').className = 'file-msg';
+  showPhotoPreview(null);
+  if (v && v.photo_path) {
+    const img = $('vPhotoPreviewImg');
+    img.removeAttribute('src');
+    img.dataset.photo = v.photo_path;
+    $('vPhotoPreview').classList.remove('hidden');
+    $('vPhotoRemoveBtn').classList.remove('hidden');
+    hydrateFiles($('vPhotoPreview'));
+  } else {
+    delete $('vPhotoPreviewImg').dataset.photo;
+  }
+  $('modalTitle').textContent = v ? 'Edit asset' : 'Add your asset';
+  $('deleteVehicleBtn').classList.toggle('hidden', !v);
+  applyMeterUnit();
+  $('vehicleModal').classList.remove('hidden');
+  $('vehicleModal').querySelector('.modal').scrollTop = 0;
+}
 
 function closeModal() {
   $('vehicleModal').classList.add('hidden');
 }
 
+$('vPhotoInput').addEventListener('change', async (e) => {
+  const f = e.target.files[0];
+  const msg = $('photoMsg');
+  pendingPhoto = null;
+  msg.className = 'file-msg';
+  msg.textContent = '';
+  if (!f) return;
+  try {
+    if (!f.type.startsWith('image/')) throw new Error('Please choose a picture (JPG or PNG).');
+    const blob = await prepareImage(f, 1280, 0.82);
+    if (blob.size > MAX_FILE_BYTES) throw new Error('That picture is too large. Please try another one.');
+    pendingPhoto = blob;
+    removePhoto = false;
+    delete $('vPhotoPreviewImg').dataset.photo;
+    showPhotoPreview(URL.createObjectURL(blob));
+  } catch (err) {
+    e.target.value = '';
+    msg.className = 'file-msg file-msg-bad';
+    msg.textContent = err.message;
+  }
+});
+
+$('vPhotoRemoveBtn').addEventListener('click', () => {
+  pendingPhoto = null;
+  removePhoto = true;
+  $('vPhotoInput').value = '';
+  showPhotoPreview(null);
+});
+
 $('vehicleForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const id = $('vehicleId').value || null;
+  const existingId = $('vehicleId').value || null;
+  const existing = existingId ? vehiclesCache.find(x => x.id === existingId) : null;
+  const id = existingId || uuid();
+
+  let licenceUrl = null;
+  const place = $('vRenewPlace').value;
+  if (place === 'uk') licenceUrl = RENEW_PRESETS.uk;
+  if (place === 'other') {
+    licenceUrl = $('vRenewUrl').value.trim();
+    if (!/^https:\/\/[^\s]+\.[^\s]+$/i.test(licenceUrl)) {
+      alert('Please type the full website address, starting with https://');
+      return;
+    }
+  }
 
   const payload = {
     user_id: currentUser.id,
     name: $('vName').value.trim(),
     vehicle_type: $('vType').value,
     licence_expiry: $('vLicence').value || null,
+    licence_url: licenceUrl,
     meter_unit: $('vMeterUnit').value,
     service_due_date: $('vServiceDate').value || null,
     service_due_km: numOrNull($('vServiceKm').value),
@@ -731,14 +1299,32 @@ $('vehicleForm').addEventListener('submit', async (e) => {
     notes: $('vNotes').value.trim() || null,
   };
 
-  if (id) {
-    const { error } = await sb.from('vehicles').update(payload).eq('id', id);
-    if (error) { alert(error.message); return; }
-  } else {
-    const { error } = await sb.from('vehicles').insert(payload);
-    if (error) { alert(error.message); return; }
+  const saveBtn = e.target.querySelector('button[type="submit"]');
+  saveBtn.disabled = true;
+  let newPath = null;
+  try {
+    if (pendingPhoto) {
+      newPath = `${currentUser.id}/photos/${id}-${Date.now()}.jpg`;
+      await uploadFile(newPath, pendingPhoto, 'image/jpeg');
+      payload.photo_path = newPath;
+    } else if (removePhoto) {
+      payload.photo_path = null;
+    }
+    let error;
+    if (existingId) {
+      ({ error } = await sb.from('vehicles').update(payload).eq('id', existingId));
+    } else {
+      ({ error } = await sb.from('vehicles').insert({ ...payload, id }));
+    }
+    if (error) throw error;
+    if (existing && existing.photo_path && (newPath || removePhoto)) await removeFiles([existing.photo_path]);
+  } catch (err) {
+    if (newPath) await removeFiles([newPath]);
+    saveBtn.disabled = false;
+    alert(err.message || 'Could not save. Please try again.');
+    return;
   }
-
+  saveBtn.disabled = false;
   closeModal();
   await loadVehicles();
 });
@@ -746,15 +1332,126 @@ $('vehicleForm').addEventListener('submit', async (e) => {
 $('deleteVehicleBtn').addEventListener('click', async () => {
   const id = $('vehicleId').value;
   if (!id) return;
-  if (!confirm('Delete this vehicle with all its parts and readings? This can\'t be undone.')) return;
+  if (!confirm('Delete this asset with all its parts, invoices and readings? This can\'t be undone.')) return;
+  const v = vehiclesCache.find(x => x.id === id);
+  const files = v ? [v.photo_path, ...(v.warranties || []).map(p => p.invoice_path)] : [];
   const { error } = await sb.from('vehicles').delete().eq('id', id);
   if (error) { alert(error.message); return; }
+  await removeFiles(files);
   closeModal();
   const wasOnVehiclePage = history.state && history.state.vehicleId;
   currentVehicleId = null;
   showDashboard();
   if (wasOnVehiclePage) history.back();
   await loadVehicles();
+});
+
+// ---------------- SHARE AN ASSET (WhatsApp / email / copy) ----------------
+function buildShareText(v) {
+  const unit = meterUnitOf(v);
+  const cur = currentMeter(v);
+  const lines = [];
+  lines.push(`*${v.name}* (${prettyType(v.vehicle_type)}) - shared from Peyper-Trails`);
+  if (cur !== null) lines.push(`${unit === 'hours' ? 'Hour meter' : 'Odometer'}: ${fmtNum(cur)} ${unitShort(unit)}`);
+  if (v.licence_expiry) lines.push(`Licence expires: ${fmtDate(v.licence_expiry)}`);
+  if (v.service_due_date) lines.push(`Next service: ${fmtDate(v.service_due_date)}`);
+  const dueAt = serviceDueMeter(v);
+  if (dueAt !== null) lines.push(`Service due at: ${fmtNum(dueAt)} ${unitShort(unit)}`);
+  if (v.notes) lines.push(`Notes: ${v.notes}`);
+
+  const parts = (v.warranties || []).slice().sort((a, b) => partNearestDays(a, v) - partNearestDays(b, v));
+  if (parts.length) {
+    lines.push('');
+    lines.push('*Parts*');
+    parts.forEach(p => {
+      const cat = categoryOf(p.category);
+      const word = trackWord(p.tracking_unit || 'km');
+      lines.push('');
+      lines.push(`- ${p.item_name} (${cat.label})`);
+      const add = (label, val) => { if (val) lines.push(`   ${label}: ${val}`); };
+      add('Brand', p.brand);
+      add('Size / type', p.spec);
+      add('Position', p.position);
+      add('Supplier no.', p.supplier_number);
+      add('Engraved date', p.engraved_date ? fmtDate(p.engraved_date) : '');
+      add('Manufactured', p.manufacturing_date ? fmtDate(p.manufacturing_date) : '');
+      add('Installed', [p.installation_date ? fmtDate(p.installation_date) : '', hasNum(p.installed_value) && word ? `at ${fmtNum(p.installed_value)} ${word}` : ''].filter(Boolean).join(' '));
+      add('Invoice no.', p.invoice_number);
+      add('Invoice date', p.invoice_date ? fmtDate(p.invoice_date) : '');
+      add('Warranty', hasNum(p.warranty_months) ? `${p.warranty_months} months` : '');
+      add('Warranty ends', [p.expiry_date ? fmtDate(p.expiry_date) : '', hasNum(p.expiry_km) && word ? `${fmtNum(p.expiry_km)} ${word}` : ''].filter(Boolean).join(' / '));
+      add('Next service', [p.next_service_date ? fmtDate(p.next_service_date) : '', hasNum(p.next_service_value) && word ? `${fmtNum(p.next_service_value)} ${word}` : ''].filter(Boolean).join(' / '));
+      add('Replaced', [p.retired_date ? fmtDate(p.retired_date) : '', hasNum(p.retired_value) && word ? `at ${fmtNum(p.retired_value)} ${word}` : ''].filter(Boolean).join(' '));
+      add('Invoice on file', p.invoice_path ? 'Yes' : '');
+      add('Notes', p.notes);
+    });
+  }
+  return lines.join('\n');
+}
+
+let shareFileList = [];
+let shareToken = 0;
+
+async function prepareShareFiles(v) {
+  const token = ++shareToken;
+  const btn = $('shareFiles');
+  shareFileList = [];
+  const paths = [v.photo_path, ...(v.warranties || []).map(p => p.invoice_path)].filter(Boolean).slice(0, 10);
+  if (!paths.length || !navigator.canShare) { btn.classList.add('hidden'); return; }
+  btn.classList.remove('hidden');
+  btn.disabled = true;
+  btn.textContent = 'Getting files ready…';
+  const safe = v.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'asset';
+  const files = [];
+  for (const path of paths) {
+    try {
+      const { data, error } = await sb.storage.from(BUCKET).download(path);
+      if (error || !data) continue;
+      const ext = (path.split('.').pop() || 'jpg').toLowerCase();
+      files.push(new File([data], `${safe}-${files.length + 1}.${ext}`, { type: data.type || (ext === 'pdf' ? 'application/pdf' : 'image/jpeg') }));
+    } catch (e) { console.error(e); }
+  }
+  if (token !== shareToken) return; // the window was closed or reopened meanwhile
+  shareFileList = files;
+  if (!files.length || !navigator.canShare({ files })) { btn.classList.add('hidden'); return; }
+  btn.disabled = false;
+  btn.textContent = `Send with ${files.length} file${files.length === 1 ? '' : 's'}`;
+}
+
+function openShare(vehicleId) {
+  const v = vehiclesCache.find(x => x.id === vehicleId);
+  if (!v) return;
+  prepareShareFiles(v);
+  const text = buildShareText(v);
+  $('shareText').value = text;
+  $('shareWhatsApp').href = 'https://wa.me/?text=' + encodeURIComponent(text);
+  $('shareEmail').href = 'mailto:?subject=' + encodeURIComponent(`${v.name} - Peyper-Trails`) + '&body=' + encodeURIComponent(text.replace(/\*/g, ''));
+  $('shareNative').classList.toggle('hidden', !navigator.share);
+  $('shareCopyMsg').textContent = '';
+  $('shareModal').classList.remove('hidden');
+}
+$('closeShare').addEventListener('click', () => { shareToken++; $('shareModal').classList.add('hidden'); });
+$('shareFiles').addEventListener('click', async () => {
+  try {
+    await navigator.share({ files: shareFileList, text: $('shareText').value.replace(/\*/g, '') });
+  } catch (err) {
+    if (err && err.name !== 'AbortError') {
+      $('shareCopyMsg').textContent = 'This phone could not attach the files. Use WhatsApp or Email to send the text instead.';
+    }
+  }
+});
+$('shareCopy').addEventListener('click', async () => {
+  const t = $('shareText').value;
+  try {
+    await navigator.clipboard.writeText(t);
+  } catch (err) {
+    $('shareText').select();
+    document.execCommand('copy');
+  }
+  $('shareCopyMsg').textContent = 'Copied. You can paste it anywhere.';
+});
+$('shareNative').addEventListener('click', async () => {
+  try { await navigator.share({ text: $('shareText').value.replace(/\*/g, '') }); } catch (err) { /* cancelled */ }
 });
 
 // ---------------- READING LOG ----------------
@@ -765,7 +1462,7 @@ async function openReadingLog(vehicleId) {
   if (!v) return;
   const unit = meterUnitOf(v);
   $('readingVehicleId').value = v.id;
-  $('readingLogFor').textContent = `${v.name} — readings in ${unit === 'hours' ? 'hours' : 'km'}`;
+  $('readingLogFor').textContent = `${v.name} — readings in ${unitWord(unit)}`;
   $('readingLabel').textContent = `Reading (${unitShort(unit)})`;
   $('readingValue').value = '';
   $('readingDate').value = todayStr();
@@ -950,6 +1647,175 @@ $('exportBtn').addEventListener('click', async () => {
   }
 });
 
+
+// ---------------- BRAND REPORTS ----------------
+function showReports(push = true) {
+  if (push) history.pushState({ reports: true }, '');
+  currentVehicleId = null;
+  $('dashScreen').classList.add('hidden');
+  $('vehicleScreen').classList.add('hidden');
+  $('reportsScreen').classList.remove('hidden');
+  $('addFab').classList.add('hidden');
+  window.scrollTo(0, 0);
+  buildReport();
+}
+$('reportsBtn').addEventListener('click', () => showReports(true));
+$('reportsBack').addEventListener('click', () => {
+  if (history.state && history.state.reports) history.back(); else showDashboard();
+});
+$('reportCategory').addEventListener('change', buildReport);
+
+function avg(nums) { return nums.length ? nums.reduce((s, n) => s + n, 0) / nums.length : null; }
+
+function buildReport() {
+  const all = [];
+  vehiclesCache.forEach(v => (v.warranties || []).forEach(p => all.push({ p, v })));
+
+  const sel = $('reportCategory');
+  const keep = sel.value || 'all';
+  const present = PART_CATEGORIES.filter(c => all.some(x => (x.p.category || 'other') === c.key));
+  sel.innerHTML = '<option value="all">All item types</option>' + present.map(c => `<option value="${c.key}">${escapeHtml(c.label)}</option>`).join('');
+  sel.value = present.some(c => c.key === keep) ? keep : 'all';
+
+  const body = $('reportBody');
+  if (all.length === 0) {
+    body.innerHTML = '<p class="help-text">No parts yet. Add parts to your assets and they will show up here.</p>';
+    return;
+  }
+  const cats = sel.value === 'all' ? present : present.filter(c => c.key === sel.value);
+  body.innerHTML = cats.map(c => {
+    const inCat = all.filter(x => (x.p.category || 'other') === c.key);
+    const groups = new Map();
+    inCat.forEach(x => {
+      const name = (x.p.brand || '').trim();
+      const key = name.toLowerCase() || '\u0000';
+      if (!groups.has(key)) groups.set(key, { name: name || 'No brand', list: [] });
+      groups.get(key).list.push(x);
+    });
+    const rows = [...groups.values()].map(g => {
+      const lives = g.list.map(x => lifeOf(x.p));
+      const days = lives.map(l => l.days).filter(d => d !== null);
+      const months = g.list.map(x => x.p.warranty_months).filter(hasNum).map(Number);
+      const byUnit = {};
+      lives.forEach(l => { if (l.dist !== null) (byUnit[l.unit] = byUnit[l.unit] || []).push(l.dist); });
+      const replaced = g.list.filter(x => x.p.retired_date).length;
+      const lastedParts = [];
+      if (days.length) lastedParts.push(`${fmtNum(Math.round(avg(days)))} days`);
+      Object.keys(byUnit).forEach(u => lastedParts.push(`${fmtNum(Math.round(avg(byUnit[u])))} ${trackWord(u)}`));
+      return {
+        name: g.name, count: g.list.length, replaced,
+        warranty: months.length ? `${Math.round(avg(months))} months` : '—',
+        lasted: lastedParts.length ? lastedParts.join(' · ') : '—',
+        score: days.length ? avg(days) : -1,
+      };
+    }).sort((x, y) => (y.score - x.score) || (y.count - x.count));
+    return `
+      <div class="report-block">
+        <h3 class="report-title"><span class="part-icon">${partSvg(c.inner, 2.5)}</span>${escapeHtml(c.label)}</h3>
+        <div class="table-scroll">
+          <table class="report-table">
+            <thead><tr><th>Brand</th><th>Parts</th><th>Avg warranty</th><th>Avg lasted</th></tr></thead>
+            <tbody>${rows.map(r => `<tr><td>${escapeHtml(r.name)}</td><td>${r.count}${r.replaced ? ` <span class="muted">(${r.replaced} replaced)</span>` : ''}</td><td>${r.warranty}</td><td>${r.lasted}</td></tr>`).join('')}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function downloadCsv(filename, rows) {
+  const csv = rows.map(row => row.map(csvCell).join(',')).join('\r\n');
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+$('exportPartsBtn').addEventListener('click', () => {
+  const rows = [['Asset', 'Asset type', 'Item type', 'Name', 'Brand', 'Size / type', 'Position', 'Supplier number', 'Engraved date', 'Manufacturing date', 'Installation date', 'Installed at', 'Invoice number', 'Invoice date', 'Warranty months', 'Warranty ends', 'Tracked by', 'Warranty ends at', 'Next service date', 'Next service at', 'Replaced on', 'Replaced at', 'Lasted days', 'Lasted distance / hours / liters', 'Invoice on file', 'Notes']];
+  vehiclesCache.forEach(v => (v.warranties || []).forEach(p => {
+    const life = lifeOf(p);
+    rows.push([v.name, prettyType(v.vehicle_type), categoryOf(p.category).label, p.item_name, p.brand, p.spec, p.position, p.supplier_number, p.engraved_date, p.manufacturing_date, p.installation_date, p.installed_value, p.invoice_number, p.invoice_date, p.warranty_months, p.expiry_date, p.tracking_unit, p.expiry_km, p.next_service_date, p.next_service_value, p.retired_date, p.retired_value, life.days, life.dist, p.invoice_path ? 'Yes' : 'No', p.notes]);
+  }));
+  if (rows.length === 1) { alert('There are no parts to export yet.'); return; }
+  downloadCsv(`peyper-trails-parts-${todayStr()}.csv`, rows);
+});
+
+// ---------------- GOOGLE SIGN-IN (switched on from config.js once Supabase is set up) ----------------
+const GOOGLE_ON = typeof GOOGLE_LOGIN_ENABLED !== 'undefined' && GOOGLE_LOGIN_ENABLED === true;
+$('googleBtnWrap').classList.toggle('hidden', !GOOGLE_ON);
+$('googleBtn').addEventListener('click', async () => {
+  const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
+  if (error) {
+    $('authError').textContent = error.message;
+    $('authError').classList.remove('hidden');
+  }
+});
+
+// ---------------- HELP & QUESTIONS (FAQ + optional AI helper) ----------------
+let faqData = null;
+async function loadFaq() {
+  if (faqData) return faqData;
+  try {
+    const r = await fetch('faq.json', { cache: 'no-cache' });
+    faqData = r.ok ? await r.json() : [];
+  } catch (e) {
+    faqData = [];
+  }
+  return faqData;
+}
+
+function renderFaq(term) {
+  const t = (term || '').trim().toLowerCase();
+  const list = (faqData || []).filter(x => !t || x.q.toLowerCase().includes(t) || x.a.toLowerCase().includes(t));
+  $('faqList').innerHTML = list.length
+    ? list.map(x => `<details class="faq-item"><summary>${escapeHtml(x.q)}</summary><div class="faq-answer">${escapeHtml(x.a)}</div></details>`).join('')
+    : '<p class="help-text">No matching question. Try other words, or ask the helper below.</p>';
+}
+
+async function openHelp() {
+  $('forgotEmailModal').classList.add('hidden');
+  $('helpModal').classList.remove('hidden');
+  $('helpSearch').value = '';
+  await loadFaq();
+  renderFaq('');
+}
+['helpBtn', 'authHelpBtn', 'footerHelpBtn', 'forgotEmailHelpBtn'].forEach(id => $(id).addEventListener('click', openHelp));
+$('closeHelp').addEventListener('click', () => $('helpModal').classList.add('hidden'));
+$('helpSearch').addEventListener('input', () => renderFaq($('helpSearch').value));
+
+$('askForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const q = $('askInput').value.trim();
+  if (q.length < 3) return;
+  const out = $('askAnswer');
+  const btn = $('askBtn');
+  btn.disabled = true;
+  out.className = 'ask-answer';
+  out.textContent = 'Thinking…';
+  try {
+    const r = await fetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q }) });
+    const data = await r.json().catch(() => ({}));
+    if (r.ok && data.answer) {
+      out.textContent = data.answer;
+    } else if (r.status === 503 || r.status === 404) {
+      out.textContent = 'The AI helper is not switched on yet. Please browse the questions above.';
+    } else if (r.status === 429) {
+      out.textContent = 'The helper has answered a lot of questions today. Please browse the questions above or try again tomorrow.';
+    } else {
+      out.textContent = 'Sorry, the helper could not answer that. Please browse the questions above.';
+    }
+  } catch (err) {
+    out.textContent = 'Could not reach the helper. Please browse the questions above.';
+  }
+  btn.disabled = false;
+});
+
 // ---------------- INIT ----------------
-buildCategoryPicker();
+$('pPosition').innerHTML = '<option value="">Not set</option>' + POSITIONS.map(p => `<option value="${p}">${p}</option>`).join('');
+buildTypePicker();
 checkSession();
