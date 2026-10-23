@@ -826,3 +826,51 @@ footer.small-print {
   padding: 12px 22px;
   font-weight: 600;
 }
+
+/* ---------- Wheel layout + picker ---------- */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 12px; }
+.chip {
+  background: transparent;
+  color: var(--canvas);
+  border: 1.5px solid rgba(234,227,205,0.3);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.chip:hover { border-color: var(--safety-orange); color: var(--safety-orange); }
+.axle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: 0.9rem; color: var(--canvas); }
+.axle-row select { flex: 1; max-width: 230px; }
+.wheel-preview { margin: 10px 0 4px; }
+.wheel-svg { width: 100%; max-width: 280px; display: block; margin: 0 auto; }
+.wd-front { fill: rgba(234,227,205,0.65); font-size: 9px; font-weight: 700; letter-spacing: 0.08em; }
+.wd-line { stroke: rgba(234,227,205,0.5); stroke-width: 2; }
+.wd-body { fill: rgba(234,227,205,0.06); stroke: rgba(234,227,205,0.3); stroke-width: 1.5; }
+.wd-axle { stroke: rgba(234,227,205,0.55); stroke-width: 3; }
+.wd-axle-no { fill: rgba(234,227,205,0.55); font-size: 9px; font-weight: 700; }
+.wd-side { fill: var(--safety-orange); font-size: 20px; font-weight: 800; }
+.wd-wheel rect { fill: #2d333b; stroke: rgba(234,227,205,0.7); stroke-width: 1.5; }
+.wd-wheel text { fill: rgba(234,227,205,0.9); font-size: 8px; font-weight: 700; pointer-events: none; }
+.wd-wheel.tap { cursor: pointer; }
+.wd-wheel.tap:hover rect { stroke: var(--safety-orange); }
+.wd-wheel.sel rect { fill: var(--safety-orange); stroke: var(--safety-orange); }
+.wd-wheel.sel text { fill: var(--asphalt); }
+.wd-wheel:focus-visible rect { stroke: var(--safety-orange); stroke-width: 3; }
+
+.left-note { font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.75rem; color: var(--forest); }
+
+/* ---------- Sign-up warning ---------- */
+.signup-warn {
+  background: rgba(194,59,59,0.12);
+  border: 1px solid rgba(194,59,59,0.45);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 4px 0 16px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--canvas);
+}
+.signup-warn .ack { display: flex; gap: 10px; align-items: flex-start; margin-top: 10px; font-weight: 600; text-transform: none; letter-spacing: normal; font-size: 0.85rem; color: var(--canvas); }
+.signup-warn .ack input { margin-top: 3px; flex-shrink: 0; }
+.signup-warn .ack input[type="checkbox"] { width: 20px; height: 20px; min-width: 20px; padding: 0; margin: 2px 0 0; flex: 0 0 20px; }
+.signup-warn .ack { width: 100%; }
