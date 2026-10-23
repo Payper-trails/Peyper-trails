@@ -25,6 +25,12 @@
 
     <div id="authError" class="error-msg hidden"></div>
 
+    <div id="googleBtnWrap" class="hidden">
+      <button type="button" class="btn-google" id="googleBtn">Continue with Google (recommended)</button>
+      <p class="help-text" style="text-align:center; margin:10px 0 0;">Google remembers your account for you, so you can't get locked out.</p>
+      <div class="or-sep"><span>or use your email</span></div>
+    </div>
+
     <form id="authForm" autocomplete="on">
       <div class="field">
         <label>Email</label>
@@ -41,13 +47,16 @@
         <input type="checkbox" id="keepLoggedIn" checked>
         <label for="keepLoggedIn">Keep me logged in on this device</label>
       </div>
+      <div id="signupWarn" class="signup-warn hidden">
+        <strong>Please read this before you sign up.</strong>
+        Use an email address you will keep for good. Your email is the only way back into your account.
+        If you lose access to it, there is no other way to retrieve your account and all your data will be lost.
+        No admin can save you.
+        <label class="ack"><input type="checkbox" id="signupAck"> I understand, and I will keep this email safe</label>
+      </div>
       <button type="submit" class="btn-primary" style="width:100%;" id="authSubmit">Log in</button>
     </form>
 
-    <div id="googleBtnWrap" class="hidden">
-      <div class="or-sep"><span>or</span></div>
-      <button type="button" class="btn-google" id="googleBtn">Continue with Google</button>
-    </div>
 
     <div class="auth-toggle">
       <span id="authToggleText">Don't have an account?</span>
@@ -99,10 +108,11 @@
     <ol class="help-steps">
       <li><strong>Search your inboxes.</strong> Look for an email from Peyper-Trails (we sent a confirmation link when you signed up). The address it was sent to is your login email.</li>
       <li><strong>Check your saved logins.</strong> Your browser or phone may have saved it. In Chrome, open the menu, tap <em>Password Manager</em> and search for &ldquo;peyper&rdquo;.</li>
-      <li><strong>Still stuck?</strong> Open Help &amp; questions below. If nothing works, email us the name of a vehicle you added and roughly when you signed up.</li>
+      <li><strong>Try your other emails.</strong> Tap Forgot password? on the login screen and enter each address. The one with an account will get a reset email.</li>
     </ol>
+    <p class="help-text" style="margin:0 0 18px;"><strong style="color:var(--canvas);">If that email is gone for good:</strong> your account can't be recovered, because there is no other way to prove it is yours and no admin can reach it. If your login email is a Gmail address, try <em>Continue with Google</em> on the login screen.</p>
     <button type="button" class="btn-primary help-support-btn" id="forgotEmailHelpBtn" style="width:100%;">See help &amp; questions</button>
-    <p class="help-text" style="margin:14px 0 0; text-align:center;">Still stuck? <a href="mailto:oddventuressa@gmail.com?subject=Peyper-Trails%20-%20I%20forgot%20my%20login%20email" style="color:var(--safety-orange);">Email us</a>. We reply when we can.</p>
+
   </div>
 </div>
 
@@ -178,7 +188,7 @@
   <button class="btn-ghost" id="exportPartsBtn" style="margin-top:18px;">Export all parts (CSV)</button>
 </div>
 
-<footer class="small-print hidden" id="footer">Peyper-Trails — every renewal, service and warranty, in one trail. · <button type="button" id="footerHelpBtn" class="link-btn-plain" style="color:inherit;">Help &amp; questions</button></footer>
+<footer class="small-print hidden" id="footer">Peyper-Trails — every renewal, service and warranty, in one trail. · <button type="button" id="footerHelpBtn" class="link-btn-plain" style="color:inherit;">Help &amp; questions</button> · <button type="button" id="footerAccountBtn" class="link-btn-plain hidden" style="color:inherit;">My account &amp; backup</button></footer>
 
 <button class="fab hidden" id="addFab" aria-label="Add asset">+</button>
 
@@ -202,6 +212,23 @@
         <label>What kind of asset is it?</label>
         <div class="type-picker type-grid" id="typePicker"></div>
         <input type="hidden" id="vType" value="car">
+      </div>
+
+      <div class="field hidden" id="fWheelLayout">
+        <label>Axles and wheels</label>
+        <div class="field-hint-static">Pick a quick layout, or build your own. We use it to show a picture of your wheels, so you can tap the exact tyre you replaced.</div>
+        <div id="layoutPresets" class="chips"></div>
+        <div class="axle-row"><span>Number of axles</span><select id="vAxleCount"></select></div>
+        <div id="axleRows"></div>
+        <div class="field hidden" id="fSideRef" style="margin:10px 0 0;">
+          <label>Left and right are as seen&hellip;</label>
+          <select id="vSideRef">
+            <option value="travel">When driving forward</option>
+            <option value="hitch">From the tow hitch, looking at the trailer</option>
+          </select>
+        </div>
+        <div id="layoutPreview" class="wheel-preview"></div>
+        <div id="layoutSummary" class="field-hint-static" style="text-align:center;"></div>
       </div>
 
       <div class="field">
@@ -308,6 +335,16 @@
         <label id="pSpecLabel">Size / type (optional)</label>
         <input type="text" id="pSpec" placeholder="Size or type">
       </div>
+      <div class="field hidden" id="fWheel">
+        <label>Which wheel? (optional)</label>
+        <div id="wheelRefNote" class="field-hint-static"></div>
+        <div id="wheelPick" class="wheel-preview"></div>
+        <div id="wheelSel" class="field-hint-static" style="text-align:center;"></div>
+        <div class="chips" style="justify-content:center;">
+          <button type="button" class="chip" id="wheelSpareBtn">Spare wheel</button>
+          <button type="button" class="chip" id="wheelClearBtn">Clear</button>
+        </div>
+      </div>
       <div class="field hidden" id="fPosition">
         <label>Position (optional)</label>
         <select id="pPosition"><option value="">Not set</option></select>
@@ -380,6 +417,12 @@
           <option value="time">Time (dates only)</option>
         </select>
       </div>
+      <div class="field hidden" id="fCurrentValue">
+        <label id="pCurrentValueLabel">Current reading</label>
+        <div class="field-hint-static">Update this whenever you like, so the countdown stays accurate.</div>
+        <input type="number" id="pCurrentValue" placeholder="e.g. 3200">
+      </div>
+      <div class="field-hint-static hidden" id="curAutoNote"></div>
       <div class="field" id="fWarrantyValue">
         <label id="pWarrantyValueLabel">Warranty ends at (km)</label>
         <input type="number" id="pWarrantyValue" placeholder="e.g. 100000">
@@ -413,6 +456,39 @@
         <button type="button" class="btn-danger hidden" id="deletePartBtn">Delete</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- ===================== ACCOUNT & BACKUP MODAL ===================== -->
+<div id="accountModal" class="modal-backdrop hidden">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>My account &amp; backup</h2>
+      <button class="modal-close" id="closeAccount">&times;</button>
+    </div>
+    <p class="help-text">You log in with: <strong id="accountEmail" style="color:var(--canvas);"></strong></p>
+    <div class="signup-warn">Your email is the only way back into your account. If you lose access to it, nobody can recover your account or your data. Keep it up to date below, and download a backup now and then.</div>
+
+    <div class="form-step"><span class="step-no">1</span> Change my login email</div>
+    <div class="field">
+      <label>New email</label>
+      <input type="email" id="newEmailInput" placeholder="you@email.com" autocomplete="off">
+    </div>
+    <button type="button" class="btn-primary" id="changeEmailBtn" style="width:100%;">Change email</button>
+    <div id="changeEmailMsg" class="file-msg"></div>
+
+    <div class="form-step"><span class="step-no">2</span> Change my password</div>
+    <div class="field">
+      <label>New password</label>
+      <input type="password" id="newPasswordInput" placeholder="At least 8 characters" autocomplete="new-password">
+    </div>
+    <button type="button" class="btn-primary" id="changePasswordBtn" style="width:100%;">Change password</button>
+    <div id="changePasswordMsg" class="file-msg"></div>
+
+    <div class="form-step"><span class="step-no">3</span> Download a backup</div>
+    <p class="help-text" style="margin-top:0;">Saves all your assets, parts, brands, dates and readings to a file on your phone or computer. Photos and invoice pictures are not inside the file, so keep your invoices somewhere safe too.</p>
+    <button type="button" class="btn-ghost" id="backupBtn" style="width:100%;">Download backup file</button>
+    <div id="backupMsg" class="file-msg"></div>
   </div>
 </div>
 
