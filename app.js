@@ -37,6 +37,7 @@ $('authToggleBtn').addEventListener('click', () => {
   $('authToggleText').textContent = authMode === 'login' ? "Don't have an account?" : "Already have an account?";
   $('authToggleBtn').textContent = authMode === 'login' ? 'Sign up' : 'Log in';
   $('authError').classList.add('hidden');
+  $('signupWarn').classList.toggle('hidden', authMode !== 'signup');
 });
 
 $('authForm').addEventListener('submit', async (e) => {
@@ -44,6 +45,12 @@ $('authForm').addEventListener('submit', async (e) => {
   const email = $('authEmail').value.trim();
   const password = $('authPassword').value;
   $('authError').classList.add('hidden');
+  if (authMode === 'signup' && !$('signupAck').checked) {
+    $('authError').classList.remove('hidden', 'info-msg');
+    $('authError').classList.add('error-msg');
+    $('authError').textContent = 'Please tick the box to confirm you understand that your email is the only way back into your account.';
+    return;
+  }
   $('authSubmit').disabled = true;
 
   // Set BEFORE calling auth, so the session gets written to the right storage
@@ -67,7 +74,7 @@ $('authForm').addEventListener('submit', async (e) => {
         $('authError').classList.remove('hidden');
         $('authError').classList.remove('error-msg');
         $('authError').classList.add('info-msg');
-        $('authError').textContent = `Almost there — we've sent a confirmation link to ${email}. Open that email and tap the link, then come back here and log in.`;
+        $('authError').textContent = `Almost there — we've sent a confirmation link to ${email}. Open that email and tap the link, then come back here and log in. Keep that email: it is your only way back into your account.`;
       }
     }
   } catch (err) {
@@ -203,6 +210,7 @@ async function checkSession() {
 }
 
 function showAuthScreen() {
+  $('footerAccountBtn').classList.add('hidden');
   currentVehicleId = null;
   $('authScreen').classList.remove('hidden');
   $('dashScreen').classList.add('hidden');
@@ -216,6 +224,7 @@ function showAuthScreen() {
 
 // Shows the dashboard (the grid of vehicles)
 function showDashboard() {
+  $('footerAccountBtn').classList.remove('hidden');
   currentVehicleId = null;
   fabMode = 'vehicle';
   $('addFab').setAttribute('aria-label', 'Add vehicle');
@@ -267,17 +276,18 @@ function statusFromDays(days) {
   return 'ok';
 }
 
-// Soonest due date across the licence, the service, and every part (dates, and km/hours when they match the asset's meter)
+// Closest thing to being due across the licence, the service (date and km/hours) and every part
 function nearestStatus(vehicle) {
   const items = [];
-  const add = (d, meter) => { if (d !== null && d !== undefined) items.push({ d, meter }); };
-  add(daysUntil(vehicle.licence_expiry), false);
-  add(daysUntil(vehicle.service_due_date), false);
-  (vehicle.warranties || []).forEach(p => partDaysDetail(p, vehicle).forEach(x => add(x.d, x.meter)));
-  if (items.length === 0) return { days: null, status: null, byMeter: false };
-  const min = Math.min(...items.map(x => x.d));
-  const byMeter = !items.some(x => x.d === min && !x.meter);
-  return { days: min, status: statusFromDays(min), byMeter };
+  const add = (c) => { if (c) items.push(c); };
+  add(dateCountdown(vehicle.licence_expiry));
+  add(dateCountdown(vehicle.service_due_date));
+  const unit = meterUnitOf(vehicle);
+  if (unit !== 'none') add(meterCountdown(serviceDueMeter(vehicle), currentMeter(vehicle), unit));
+  (vehicle.warranties || []).forEach(p => { const c = partCountdowns(p, vehicle); [...c.warranty, ...c.service].forEach(add); });
+  const near = nearestOf(items);
+  if (!near) return { days: null, status: null, label: '—' };
+  return { days: near.d, status: statusFromDays(near.d), label: near.label };
 }
 
 function ringColor(status) {
@@ -359,6 +369,7 @@ const TYPE_ICONS = {
   'solar-panels': '<svg viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"><path d="M8 6 H40 L44 20 H4 Z"/><path d="M16 6 L14 20 M24 6 V20 M32 6 L34 20 M6 13 H42"/><path d="M24 20 V27 M17 27 H31"/></svg>',
   'inverter': '<svg viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"><rect x="7" y="6" width="34" height="20" rx="2"/><path d="M11 16 Q14 9 17 16 T23 16"/><path d="M31 11 L28 17 H33 L30 22"/><path d="M13 26 V29 M35 26 V29"/></svg>',
   'coffee-machine': '<svg viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"><path d="M9 5 H35 V12 H9 Z"/><path d="M11 12 V27 H33 V12"/><path d="M17 27 V22 H27 V27"/><path d="M35 9 H39 Q42 9 42 12 V14"/><path d="M20 17 H24"/></svg>',
+  'truck': '<svg viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"><path d="M3 22 V9 H27 V22 M27 13 H36 L43 19 V22 H27"/><circle cx="11" cy="24" r="3.2"/><circle cx="20" cy="24" r="3.2"/><circle cx="36" cy="24" r="3.2"/></svg>',
   other: '<svg viewBox="0 0 48 32"><circle cx="24" cy="16" r="11" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M20 13 Q20 9 24 9 Q28 9 28 13 Q28 16 24 17 V19" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/><circle cx="24" cy="22" r="1.2" fill="currentColor"/></svg>',
 };
 
@@ -375,6 +386,7 @@ const VEHICLE_TYPES = [
   { key: 'bakkie', label: 'Bakkie' },
   { key: 'motorbike', label: 'Motorbike' },
   { key: 'tractor', label: 'Tractor' },
+  { key: 'truck', label: 'Truck' },
   { key: 'boat', label: 'Boat' },
   { key: 'trailer', label: 'Trailer' },
   { key: 'caravan', label: 'Caravan' },
@@ -465,6 +477,82 @@ const PART_SPEC = {
 };
 const POSITIONS = ['Front left', 'Front right', 'Rear left', 'Rear right', 'Front', 'Rear', 'Spare'];
 
+
+// ---------------- WHEELS, AXLES AND POSITIONS ----------------
+// Assets that have axles get a wheel layout: axles run front to back, each with 1 (single) or 2 (dual) wheels per side.
+const WHEEL_TYPES = ['trailer', 'caravan', 'truck', 'haul-truck', 'tractor', 'loader'];
+const WHEEL_PART_KEYS = ['tyres', 'brakes', 'shocks'];
+const LAYOUT_PRESETS = {
+  trailer: [{ label: 'Single axle', axles: [1] }, { label: 'Double axle', axles: [1, 1] }, { label: 'Triple axle', axles: [1, 1, 1] }],
+  truck: [{ label: '4x2 (rear dual)', axles: [1, 2] }, { label: '6x4 (two rear dual axles)', axles: [1, 2, 2] }, { label: '8x4 (two front, two rear dual)', axles: [1, 1, 2, 2] }],
+  other: [{ label: 'Two axles', axles: [1, 1] }],
+};
+function presetGroup(type) { return ['trailer', 'caravan'].includes(type) ? 'trailer' : (['truck', 'haul-truck'].includes(type) ? 'truck' : 'other'); }
+function defaultLayoutFor(type) {
+  const axles = { trailer: [1], caravan: [1], truck: [1, 2], 'haul-truck': [1, 2], tractor: [1, 1], loader: [1, 1] }[type] || [1, 1];
+  return { axles: axles.slice(), ref: 'travel' };
+}
+function getLayout(v) {
+  let l = v && v.wheel_layout;
+  if (typeof l === 'string') { try { l = JSON.parse(l); } catch (e) { l = null; } }
+  if (l && Array.isArray(l.axles) && l.axles.length) {
+    return { axles: l.axles.map(n => (Number(n) === 2 ? 2 : 1)), ref: l.ref === 'hitch' ? 'hitch' : 'travel' };
+  }
+  return null;
+}
+function wheelLabel(axleIdx, side, pos) {
+  return `Axle ${axleIdx + 1} · ${side === 'L' ? 'Left' : 'Right'}${pos ? ' ' + (pos === 'O' ? 'outer' : 'inner') : ''} (${axleIdx + 1}${side}${pos})`;
+}
+function codeFromPosition(text) {
+  const m = /\((\d+[LR][OI]?)\)\s*$/.exec(text || '');
+  return m ? m[1] : '';
+}
+function totalWheels(layout) { return layout.axles.reduce((n, w) => n + w * 2, 0); }
+function layoutSummary(layout) {
+  const parts = layout.axles.map((w, i) => `axle ${i + 1} ${w === 2 ? 'dual' : 'single'}`);
+  return `${layout.axles.length} axle${layout.axles.length === 1 ? '' : 's'} (${parts.join(', ')}), ${totalWheels(layout)} wheels`;
+}
+function sideNote(layout, type) {
+  if (layout.ref === 'hitch') return 'Left and right as seen from the tow hitch, looking at the trailer';
+  return type === 'truck' || type === 'haul-truck' ? 'Left and right as seen by the driver, facing forward' : 'Left and right as seen when driving forward';
+}
+
+// Top-down picture, front at the top. `selectedCode` lights up one wheel; `clickable` lets people tap wheels.
+function wheelDiagramSVG(layout, type, selectedCode, clickable) {
+  const n = layout.axles.length;
+  const leftSide = layout.ref === 'hitch' ? 'R' : 'L';
+  const rightSide = layout.ref === 'hitch' ? 'L' : 'R';
+  const W = 260, spacing = 58, top = 46, cx = 130;
+  const H = top + (n - 1) * spacing + 20 + 34;
+  const axleY = (i) => top + 20 + i * spacing;
+  const towed = ['trailer', 'caravan'].includes(type);
+  let s = `<svg class="wheel-svg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Wheel positions, front at the top">`;
+  s += `<text x="${cx}" y="13" text-anchor="middle" class="wd-front">${towed ? 'TOW HITCH (FRONT)' : 'FRONT'}</text>`;
+  s += `<line x1="${cx}" y1="18" x2="${cx}" y2="${top - 6}" class="wd-line"/>`;
+  s += `<rect x="${cx - 26}" y="${top - 6}" width="52" height="${(n - 1) * spacing + 20 + 14 + 6}" rx="7" class="wd-body"/>`;
+  s += `<text x="30" y="${top + 4}" class="wd-side">${leftSide}</text><text x="${W - 30}" y="${top + 4}" text-anchor="end" class="wd-side">${rightSide}</text>`;
+  layout.axles.forEach((w, i) => {
+    const y = axleY(i);
+    const wheels = [];
+    if (w === 2) {
+      wheels.push({ x: 54, side: leftSide, pos: 'O' }, { x: 78, side: leftSide, pos: 'I' }, { x: 182, side: rightSide, pos: 'I' }, { x: 206, side: rightSide, pos: 'O' });
+    } else {
+      wheels.push({ x: 78, side: leftSide, pos: '' }, { x: 182, side: rightSide, pos: '' });
+    }
+    s += `<line x1="${wheels[0].x}" y1="${y}" x2="${wheels[wheels.length - 1].x}" y2="${y}" class="wd-axle"/>`;
+    s += `<text x="8" y="${y + 4}" class="wd-axle-no">A${i + 1}</text>`;
+    wheels.forEach(wh => {
+      const code = `${i + 1}${wh.side}${wh.pos}`;
+      const label = wheelLabel(i, wh.side, wh.pos);
+      const sel = code === selectedCode;
+      s += `<g class="wd-wheel${sel ? ' sel' : ''}${clickable ? ' tap' : ''}" ${clickable ? `data-code="${code}" data-label="${label}" role="button" tabindex="0" aria-label="${label}"` : ''}>`;
+      s += `<rect x="${wh.x - 10}" y="${y - 17}" width="20" height="34" rx="4"/><text x="${wh.x}" y="${y + 3}" text-anchor="middle">${code}</text></g>`;
+    });
+  });
+  s += '</svg>';
+  return s;
+}
+
 // ---------------- SMALL HELPERS ----------------
 function meterUnitOf(v) {
   if (!v) return 'km';
@@ -514,41 +602,58 @@ function addMonthsISO(iso, months) {
 }
 
 // ---------------- MEASURING A PART (feeds the dial) ----------------
-// If a part is tracked in the same unit as its asset's meter (km or hours),
-// being past the number counts as DUE, and being close counts as "due soon".
-const NEAR_LIMIT = { km: 1000, miles: 600, hours: 50 };
+// Every countdown is turned into "days-equivalent" so one dial can compare dates with km, miles, hours and liters.
+// Being inside the "near" amount below counts as 30 days (due soon); being past the number counts as due.
+const NEAR_LIMIT = { km: 1000, miles: 600, hours: 50, liters: 50 };
 
-function meterDaysFor(p, value, v) {
-  if (!hasNum(value)) return null;
+function daysText(d) { return d <= 0 ? 'DUE' : `${d} days left`; }
+
+// Current reading in the part's own unit: the asset's meter when the units match, otherwise the number typed on the part
+function currentFor(p, v) {
   const pu = p.tracking_unit || 'km';
-  if (!['km', 'miles', 'hours'].includes(pu) || pu !== meterUnitOf(v)) return null;
-  const cur = currentMeter(v);
-  if (cur === null) return null;
-  const remaining = Number(value) - cur;
-  if (remaining <= 0) return 0;
-  return remaining <= NEAR_LIMIT[pu] ? 30 : null;
+  if (pu === 'time') return null;
+  if (pu === meterUnitOf(v)) return currentMeter(v);
+  return hasNum(p.current_value) ? Number(p.current_value) : null;
 }
-function minDays(list) {
-  const nums = list.filter(d => d !== null && d !== undefined);
-  return nums.length ? Math.min(...nums) : null;
+
+// Countdown to a km / miles / hours / liters number
+function meterCountdown(target, current, unit) {
+  if (!hasNum(target) || current === null || !(unit in NEAR_LIMIT)) return null;
+  const remaining = Number(target) - current;
+  const d = remaining <= 0 ? 0 : Math.min(365, Math.max(1, Math.round(remaining / NEAR_LIMIT[unit] * 30)));
+  return { remaining, unit, d, meter: true, label: remaining <= 0 ? 'DUE' : `${fmtNum(Math.round(remaining))} ${trackWord(unit)} left` };
 }
-// A part that has been replaced no longer counts towards the dial
-function partWarrantyDays(p, v) { return p.retired_date ? null : minDays([daysUntil(p.expiry_date), meterDaysFor(p, p.expiry_km, v)]); }
-function partServiceDays(p, v) { return p.retired_date ? null : minDays([daysUntil(p.next_service_date), meterDaysFor(p, p.next_service_value, v)]); }
-// Every due-ness for a part, noting whether it came from a km/hours number
-function partDaysDetail(p, v) {
-  if (p.retired_date) return [];
-  const out = [];
-  [p.expiry_date, p.next_service_date].forEach(d => { const n = daysUntil(d); if (n !== null) out.push({ d: n, meter: false }); });
-  [p.expiry_km, p.next_service_value].forEach(x => { const n = meterDaysFor(p, x, v); if (n !== null) out.push({ d: n, meter: true }); });
-  return out;
+function remainingNote(c) {
+  if (!c) return '';
+  const n = fmtNum(Math.round(Math.abs(c.remaining)));
+  return c.remaining <= 0 ? `overdue by ${n} ${trackWord(c.unit)}` : `${n} ${trackWord(c.unit)} left`;
 }
-function partDaysList(p, v) { return partDaysDetail(p, v).map(x => x.d); }
-// Text under the dial
-function dialLabel(days, byMeter) {
-  if (days === null || days === undefined) return '—';
-  if (days <= 0) return 'DUE';
-  return byMeter ? 'DUE SOON' : `${days} days left`;
+function dateCountdown(iso) {
+  const d = daysUntil(iso);
+  return d === null ? null : { d, meter: false, label: daysText(d) };
+}
+// A replaced part counts for nothing
+function partCountdowns(p, v) {
+  if (p.retired_date) return { warranty: [], service: [] };
+  const pu = p.tracking_unit || 'km';
+  const cur = currentFor(p, v);
+  return {
+    warranty: [dateCountdown(p.expiry_date), pu !== 'time' ? meterCountdown(p.expiry_km, cur, pu) : null].filter(Boolean),
+    service: [dateCountdown(p.next_service_date), pu !== 'time' ? meterCountdown(p.next_service_value, cur, pu) : null].filter(Boolean),
+  };
+}
+function nearestOf(list) { return list.length ? list.reduce((x, y) => (y.d < x.d ? y : x)) : null; }
+function partWarrantyDays(p, v) { const n = nearestOf(partCountdowns(p, v).warranty); return n ? n.d : null; }
+function partServiceDays(p, v) { const n = nearestOf(partCountdowns(p, v).service); return n ? n.d : null; }
+function partDaysList(p, v) { const c = partCountdowns(p, v); return [...c.warranty, ...c.service].map(x => x.d); }
+
+// "Service at 95,000 km" row, with how much is left
+function serviceAtRow(v) {
+  const unit = meterUnitOf(v);
+  const dueAt = serviceDueMeter(v);
+  if (unit === 'none' || dueAt === null) return '';
+  const note = remainingNote(meterCountdown(dueAt, currentMeter(v), unit));
+  return `<div class="disc-row"><span class="k">Service at</span><span class="v">${fmtNum(dueAt)} ${unitShort(unit)}${note ? `<br><span class="left-note">${note}</span>` : ''}</span></div>`;
 }
 
 // ---------------- FILES: PHOTOS & INVOICES ----------------
@@ -637,8 +742,8 @@ function renderGrid() {
   empty.classList.add('hidden');
 
   vehiclesCache.forEach(v => {
-    const { days, byMeter } = nearestStatus(v);
-    const daysLabel = dialLabel(days, byMeter);
+    const { days, label } = nearestStatus(v);
+    const daysLabel = label;
     const unit = meterUnitOf(v);
     const licStatus = statusFromDays(daysUntil(v.licence_expiry));
     const svcStatus = statusFromDays(daysUntil(v.service_due_date));
@@ -664,7 +769,7 @@ function renderGrid() {
       <div class="disc-rows">
         ${v.licence_expiry ? `<div class="disc-row"><span class="k">Licence</span><span class="v">${fmtDate(v.licence_expiry)} ${tagHtml(licStatus)}</span></div>` : ''}
         ${v.service_due_date ? `<div class="disc-row"><span class="k">Service due</span><span class="v">${fmtDate(v.service_due_date)} ${tagHtml(svcStatus)}</span></div>` : ''}
-        ${dueAt !== null ? `<div class="disc-row"><span class="k">Service at</span><span class="v">${fmtNum(dueAt)} ${unitShort(unit)}</span></div>` : ''}
+        ${serviceAtRow(v)}
         <div class="disc-row"><span class="k">Parts tracked</span><span class="v">${partsCount}</span></div>
       </div>
       <div class="disc-actions">
@@ -752,12 +857,17 @@ function partCardHtml(p, v) {
   const wLine = [p.expiry_date ? fmtDate(p.expiry_date) : '', hasNum(p.expiry_km) && word ? `${fmtNum(p.expiry_km)} ${word}` : ''].filter(Boolean).join(' · ');
   const sLine = [p.next_service_date ? fmtDate(p.next_service_date) : '', hasNum(p.next_service_value) && word ? `${fmtNum(p.next_service_value)} ${word}` : ''].filter(Boolean).join(' · ');
   const life = lifeOf(p);
+  const cd = partCountdowns(p, v);
+  const wNote = remainingNote(cd.warranty.find(x => x.meter));
+  const sNote = remainingNote(cd.service.find(x => x.meter));
+  const manualReading = tu !== 'time' && tu !== meterUnitOf(v) && hasNum(p.current_value);
   const lifeLine = [life.days !== null ? `${fmtNum(life.days)} days` : '', life.dist !== null && word ? `${fmtNum(life.dist)} ${word}` : ''].filter(Boolean).join(' · ');
   const rows = [
     p.installation_date ? `<div class="disc-row"><span class="k">Installed</span><span class="v">${fmtDate(p.installation_date)}</span></div>` : '',
     p.invoice_number ? `<div class="disc-row"><span class="k">Invoice no.</span><span class="v">${escapeHtml(p.invoice_number)}</span></div>` : '',
-    wLine ? `<div class="disc-row"><span class="k">Warranty ends</span><span class="v">${wLine}</span></div>` : '',
-    !retired && sLine ? `<div class="disc-row"><span class="k">Next service</span><span class="v">${sLine}</span></div>` : '',
+    wLine ? `<div class="disc-row"><span class="k">Warranty ends</span><span class="v">${wLine}${wNote ? `<br><span class="left-note">${wNote}</span>` : ''}</span></div>` : '',
+    !retired && sLine ? `<div class="disc-row"><span class="k">Next service</span><span class="v">${sLine}${sNote ? `<br><span class="left-note">${sNote}</span>` : ''}</span></div>` : '',
+    !retired && manualReading ? `<div class="disc-row"><span class="k">Reading now</span><span class="v">${fmtNum(p.current_value)} ${word}</span></div>` : '',
     retired ? `<div class="disc-row"><span class="k">Replaced</span><span class="v">${fmtDate(p.retired_date)}</span></div>` : '',
     retired && lifeLine ? `<div class="disc-row"><span class="k">Lasted</span><span class="v">${lifeLine}</span></div>` : '',
   ].join('');
@@ -785,8 +895,8 @@ function renderVehiclePage() {
   const v = vehiclesCache.find(x => x.id === currentVehicleId);
   if (!v) return;
   const unit = meterUnitOf(v);
-  const { days, byMeter } = nearestStatus(v);
-  const daysLabel = dialLabel(days, byMeter);
+  const { days, label } = nearestStatus(v);
+  const daysLabel = label;
   const cur = currentMeter(v);
   const dueAt = serviceDueMeter(v);
   const licStatus = statusFromDays(daysUntil(v.licence_expiry));
@@ -807,9 +917,10 @@ function renderVehiclePage() {
       </div>
       <div class="disc-rows">
         ${unit !== 'none' ? `<div class="disc-row"><span class="k">${unit === 'hours' ? 'Hour meter' : 'Odometer'}</span><span class="v">${cur !== null ? fmtNum(cur) + ' ' + unitShort(unit) : '—'}</span></div>` : ''}
+        ${getLayout(v) ? `<div class="disc-row"><span class="k">Wheels</span><span class="v" style="font-family:'Inter',sans-serif; font-weight:500; text-align:right;">${totalWheels(getLayout(v))} on ${getLayout(v).axles.length} axle${getLayout(v).axles.length === 1 ? '' : 's'}</span></div>` : ''}
         ${v.licence_expiry ? `<div class="disc-row"><span class="k">Licence</span><span class="v">${fmtDate(v.licence_expiry)} ${tagHtml(licStatus)}</span></div>` : ''}
         ${v.service_due_date ? `<div class="disc-row"><span class="k">Service due</span><span class="v">${fmtDate(v.service_due_date)} ${tagHtml(svcStatus)}</span></div>` : ''}
-        ${dueAt !== null ? `<div class="disc-row"><span class="k">Service at</span><span class="v">${fmtNum(dueAt)} ${unitShort(unit)}</span></div>` : ''}
+        ${serviceAtRow(v)}
         ${v.notes ? `<div class="disc-row"><span class="k">Notes</span><span class="v" style="font-family:'Inter',sans-serif; font-weight:500; text-align:right;">${escapeHtml(v.notes)}</span></div>` : ''}
       </div>
       <div class="vehicle-actions">
@@ -862,6 +973,7 @@ document.addEventListener('click', (e) => {
 
 // ---------------- MODAL: ADD/EDIT PART ----------------
 let partTouched = { unit: false, expiry: false, installedValue: false };
+let wheelPos = '';   // chosen wheel position text, e.g. 'Axle 2 · Left outer (2LO)'
 let pendingInvoice = null;   // { blob, type, ext } chosen but not yet uploaded
 let removeInvoice = false;
 
@@ -898,7 +1010,11 @@ function setPartCategory(key, fromUser = true) {
   const spec = PART_SPEC[cat.key] || PART_SPEC.other;
   $('pSpecLabel').textContent = `${spec.label} (optional)`;
   $('pSpec').placeholder = spec.ph;
-  $('fPosition').classList.toggle('hidden', !spec.pos);
+  const layout = getLayout(v);
+  const useWheel = !!layout && WHEEL_PART_KEYS.includes(cat.key);
+  $('fWheel').classList.toggle('hidden', !useWheel);
+  $('fPosition').classList.toggle('hidden', !spec.pos || useWheel);
+  if (useWheel) renderWheelPicker();
   const battery = cat.key === 'battery';
   $('pSupplierLabelText').textContent = battery ? 'Supplier number (engraved number on your battery)' : 'Supplier / part number (optional)';
   $('hSupplier').textContent = battery
@@ -910,6 +1026,31 @@ function setPartCategory(key, fromUser = true) {
     applyTrackUnit();
   }
 }
+
+function renderWheelPicker() {
+  const v = vehiclesCache.find(x => x.id === currentVehicleId);
+  const layout = getLayout(v);
+  if (!layout) return;
+  $('wheelPick').innerHTML = wheelDiagramSVG(layout, v.vehicle_type, codeFromPosition(wheelPos), true);
+  $('wheelSel').textContent = wheelPos ? `Selected: ${wheelPos}` : 'Tap the wheel on the picture.';
+  $('wheelRefNote').textContent = sideNote(layout, v.vehicle_type);
+}
+$('wheelPick').addEventListener('click', (e) => {
+  const g = e.target.closest('[data-code]');
+  if (!g) return;
+  wheelPos = g.dataset.label;
+  renderWheelPicker();
+});
+$('wheelPick').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const g = e.target.closest('[data-code]');
+  if (!g) return;
+  e.preventDefault();
+  wheelPos = g.dataset.label;
+  renderWheelPicker();
+});
+$('wheelSpareBtn').addEventListener('click', () => { wheelPos = 'Spare'; renderWheelPicker(); });
+$('wheelClearBtn').addEventListener('click', () => { wheelPos = ''; renderWheelPicker(); });
 
 function applyTrackUnit() {
   const u = $('pTrackUnit').value;
@@ -923,6 +1064,17 @@ function applyTrackUnit() {
   $('pServiceValueLabel').textContent = `Next service at (${word})`;
   $('pInstalledValueLabel').textContent = `Reading when installed (${word})`;
   $('pRetiredValueLabel').textContent = `Reading when replaced (${word})`;
+  const vv = vehiclesCache.find(x => x.id === currentVehicleId);
+  const auto = show && vv && u === meterUnitOf(vv);
+  $('fCurrentValue').classList.toggle('hidden', !show || auto);
+  $('pCurrentValueLabel').textContent = `Current reading (${word})`;
+  $('curAutoNote').classList.toggle('hidden', !auto);
+  if (auto) {
+    const cm = currentMeter(vv);
+    $('curAutoNote').textContent = cm !== null
+      ? `We use the asset's own reading (${fmtNum(cm)} ${word}) for the countdown, so there is nothing to type. It updates whenever you update the asset's reading.`
+      : `We use the asset's own reading for the countdown. Add the asset's current reading and the countdown starts.`;
+  }
   // New part measured in the asset's own unit: start the "installed at" box on the asset's current reading
   if (!partTouched.installedValue && !$('partId').value) {
     const v = vehiclesCache.find(x => x.id === currentVehicleId);
@@ -971,7 +1123,9 @@ function openPartModal(partId) {
   $('pBrand').value = p ? (p.brand || '') : '';
   $('pSpec').value = p ? (p.spec || '') : '';
   $('pPosition').value = p ? (p.position || '') : '';
+  wheelPos = p ? (p.position || '') : '';
   $('pInstalledValue').value = p && hasNum(p.installed_value) ? p.installed_value : '';
+  $('pCurrentValue').value = p && hasNum(p.current_value) ? p.current_value : '';
   $('pRetiredDate').value = p ? (p.retired_date || '') : '';
   $('pRetiredValue').value = p && hasNum(p.retired_value) ? p.retired_value : '';
   $('pSupplier').value = p ? (p.supplier_number || '') : '';
@@ -1073,6 +1227,7 @@ $('partForm').addEventListener('submit', async (e) => {
     spec: $('pSpec').value.trim() || null,
     position: $('pPosition').value || null,
     installed_value: numOrNull($('pInstalledValue').value),
+    current_value: $('fCurrentValue').classList.contains('hidden') ? null : numOrNull($('pCurrentValue').value),
     retired_date: $('pRetiredDate').value || null,
     retired_value: numOrNull($('pRetiredValue').value),
     supplier_number: $('pSupplier').value.trim() || null,
@@ -1091,7 +1246,9 @@ $('partForm').addEventListener('submit', async (e) => {
   };
   if (!payload.item_name) return;
   if ($('pTrackUnit').value === 'time') { payload.expiry_km = null; payload.next_service_value = null; payload.installed_value = null; payload.retired_value = null; }
-  if ($('fPosition').classList.contains('hidden')) payload.position = null;
+  const wheelMode = !$('fWheel').classList.contains('hidden');
+  const listMode = !$('fPosition').classList.contains('hidden');
+  payload.position = wheelMode ? (wheelPos || null) : (listMode ? ($('pPosition').value || null) : null);
 
   const saveBtn = $('partSaveBtn');
   saveBtn.disabled = true;
@@ -1139,6 +1296,58 @@ $('deletePartBtn').addEventListener('click', async () => {
 });
 
 // ---------------- MODAL: ADD/EDIT ASSET ----------------
+// ---------------- ASSET FORM: AXLES AND WHEELS ----------------
+let layoutDraft = null;
+let layoutTouched = false;
+
+function applyLayoutUi(type) {
+  const show = WHEEL_TYPES.includes(type);
+  $('fWheelLayout').classList.toggle('hidden', !show);
+  if (!show) return;
+  const group = presetGroup(type);
+  $('layoutPresets').innerHTML = (LAYOUT_PRESETS[group] || LAYOUT_PRESETS.other).map((p, i) => `<button type="button" class="chip" data-preset="${i}">${p.label}</button>`).join('');
+  $('layoutPresets').querySelectorAll('[data-preset]').forEach(btn => btn.addEventListener('click', () => {
+    layoutDraft.axles = (LAYOUT_PRESETS[group] || LAYOUT_PRESETS.other)[+btn.dataset.preset].axles.slice();
+    layoutTouched = true;
+    renderLayoutEditor();
+  }));
+  $('fSideRef').classList.toggle('hidden', group !== 'trailer');
+  if (group !== 'trailer') layoutDraft.ref = 'travel';
+  renderLayoutEditor();
+}
+
+function renderLayoutEditor() {
+  const type = $('vType').value;
+  $('vAxleCount').value = String(layoutDraft.axles.length);
+  $('axleRows').innerHTML = layoutDraft.axles.map((w, i) => `
+    <div class="axle-row"><span>Axle ${i + 1}${i === 0 ? ' (front)' : ''}</span>
+      <select data-axle="${i}"><option value="1"${w === 1 ? ' selected' : ''}>Single wheels</option><option value="2"${w === 2 ? ' selected' : ''}>Dual wheels (double tyres)</option></select>
+    </div>`).join('');
+  $('axleRows').querySelectorAll('[data-axle]').forEach(sel => sel.addEventListener('change', () => {
+    layoutDraft.axles[+sel.dataset.axle] = Number(sel.value) === 2 ? 2 : 1;
+    layoutTouched = true;
+    renderLayoutEditor();
+  }));
+  $('vSideRef').value = layoutDraft.ref;
+  $('layoutPreview').innerHTML = wheelDiagramSVG(layoutDraft, type, '', false);
+  $('layoutSummary').textContent = `${layoutSummary(layoutDraft)}. ${sideNote(layoutDraft, type)}.`;
+}
+
+$('vAxleCount').innerHTML = [1, 2, 3, 4, 5, 6].map(n => `<option value="${n}">${n}</option>`).join('');
+$('vAxleCount').addEventListener('change', () => {
+  const n = Number($('vAxleCount').value);
+  const last = layoutDraft.axles[layoutDraft.axles.length - 1] || 1;
+  while (layoutDraft.axles.length < n) layoutDraft.axles.push(last);
+  layoutDraft.axles.length = n;
+  layoutTouched = true;
+  renderLayoutEditor();
+});
+$('vSideRef').addEventListener('change', () => {
+  layoutDraft.ref = $('vSideRef').value === 'hitch' ? 'hitch' : 'travel';
+  layoutTouched = true;
+  renderLayoutEditor();
+});
+
 let meterTouched = false;
 let pendingPhoto = null;   // Blob chosen but not yet uploaded
 let removePhoto = false;
@@ -1153,6 +1362,8 @@ function buildTypePicker() {
   $('typePicker').querySelectorAll('.type-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       setVehicleType(btn.dataset.type);
+      if (!layoutTouched) layoutDraft = defaultLayoutFor(btn.dataset.type);
+      applyLayoutUi(btn.dataset.type);
       if (!$('vehicleId').value && !meterTouched) {
         $('vMeterUnit').value = defaultMeterFor(btn.dataset.type);
         applyMeterUnit();
@@ -1196,6 +1407,9 @@ function showPhotoPreview(src) {
 function openModal(vehicleId) {
   const v = vehicleId ? vehiclesCache.find(x => x.id === vehicleId) : null;
   meterTouched = !!v;
+  const savedLayout = getLayout(v);
+  layoutTouched = !!savedLayout;
+  layoutDraft = savedLayout || defaultLayoutFor(v ? v.vehicle_type : 'car');
   pendingPhoto = null;
   removePhoto = false;
   $('vehicleId').value = v ? v.id : '';
@@ -1227,6 +1441,7 @@ function openModal(vehicleId) {
   } else {
     delete $('vPhotoPreviewImg').dataset.photo;
   }
+  applyLayoutUi($('vType').value);
   $('modalTitle').textContent = v ? 'Edit asset' : 'Add your asset';
   $('deleteVehicleBtn').classList.toggle('hidden', !v);
   applyMeterUnit();
@@ -1290,6 +1505,7 @@ $('vehicleForm').addEventListener('submit', async (e) => {
     vehicle_type: $('vType').value,
     licence_expiry: $('vLicence').value || null,
     licence_url: licenceUrl,
+    wheel_layout: WHEEL_TYPES.includes($('vType').value) ? { axles: layoutDraft.axles, ref: layoutDraft.ref } : null,
     meter_unit: $('vMeterUnit').value,
     service_due_date: $('vServiceDate').value || null,
     service_due_km: numOrNull($('vServiceKm').value),
@@ -1353,6 +1569,7 @@ function buildShareText(v) {
   const lines = [];
   lines.push(`*${v.name}* (${prettyType(v.vehicle_type)}) - shared from Peyper-Trails`);
   if (cur !== null) lines.push(`${unit === 'hours' ? 'Hour meter' : 'Odometer'}: ${fmtNum(cur)} ${unitShort(unit)}`);
+  if (getLayout(v)) lines.push(`Wheels: ${layoutSummary(getLayout(v))}. ${sideNote(getLayout(v), v.vehicle_type)}.`);
   if (v.licence_expiry) lines.push(`Licence expires: ${fmtDate(v.licence_expiry)}`);
   if (v.service_due_date) lines.push(`Next service: ${fmtDate(v.service_due_date)}`);
   const dueAt = serviceDueMeter(v);
@@ -1813,6 +2030,68 @@ $('askForm').addEventListener('submit', async (e) => {
     out.textContent = 'Could not reach the helper. Please browse the questions above.';
   }
   btn.disabled = false;
+});
+
+
+// ---------------- MY ACCOUNT & BACKUP ----------------
+function showFooterAccount() { $('footerAccountBtn').classList.toggle('hidden', !currentUser); }
+function openAccount() {
+  $('accountEmail').textContent = currentUser && currentUser.email ? currentUser.email : '';
+  ['changeEmailMsg', 'changePasswordMsg', 'backupMsg'].forEach(id => { $(id).textContent = ''; $(id).className = 'file-msg'; });
+  $('newEmailInput').value = '';
+  $('newPasswordInput').value = '';
+  $('accountModal').classList.remove('hidden');
+}
+function accountMsg(id, text, bad) { $(id).className = 'file-msg' + (bad ? ' file-msg-bad' : ''); $(id).textContent = text; }
+$('footerAccountBtn').addEventListener('click', openAccount);
+$('closeAccount').addEventListener('click', () => $('accountModal').classList.add('hidden'));
+
+$('changeEmailBtn').addEventListener('click', async () => {
+  const email = $('newEmailInput').value.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { accountMsg('changeEmailMsg', 'Please type a full email address.', true); return; }
+  $('changeEmailBtn').disabled = true;
+  const { error } = await sb.auth.updateUser({ email });
+  $('changeEmailBtn').disabled = false;
+  if (error) { accountMsg('changeEmailMsg', error.message, true); return; }
+  accountMsg('changeEmailMsg', `We sent a confirmation link to ${email}. Your login only changes after you open that link. You may also get a link at your old address: confirm both.`);
+});
+
+$('changePasswordBtn').addEventListener('click', async () => {
+  const pw = $('newPasswordInput').value;
+  if (pw.length < 8) { accountMsg('changePasswordMsg', 'Please use at least 8 characters.', true); return; }
+  $('changePasswordBtn').disabled = true;
+  const { error } = await sb.auth.updateUser({ password: pw });
+  $('changePasswordBtn').disabled = false;
+  if (error) { accountMsg('changePasswordMsg', error.message, true); return; }
+  $('newPasswordInput').value = '';
+  accountMsg('changePasswordMsg', 'Password changed.');
+});
+
+$('backupBtn').addEventListener('click', async () => {
+  $('backupBtn').disabled = true;
+  try {
+    const readings = await fetchAllReadings();
+    const backup = {
+      app: 'Peyper-Trails',
+      saved_on: new Date().toISOString(),
+      note: 'Assets, parts and readings. Photos and invoice files are not included.',
+      assets: vehiclesCache.map(v => ({ ...v, user_id: undefined, parts: (v.warranties || []).map(p => ({ ...p, user_id: undefined })), warranties: undefined })),
+      readings: readings.map(r => ({ ...r, user_id: undefined })),
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `peyper-trails-backup-${todayStr()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    accountMsg('backupMsg', `Backup saved: ${backup.assets.length} asset${backup.assets.length === 1 ? '' : 's'} and ${backup.readings.length} reading${backup.readings.length === 1 ? '' : 's'}.`);
+  } catch (err) {
+    accountMsg('backupMsg', err.message || 'Could not make the backup. Try again.', true);
+  }
+  $('backupBtn').disabled = false;
 });
 
 // ---------------- INIT ----------------
